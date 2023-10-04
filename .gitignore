@@ -16,3 +16,10 @@
 
 # Go workspace file
 go.work
+
+problems/*.json
+
+config.*.yaml
+
+# backups
+*.bak
