@@ -38,6 +38,12 @@ type Question struct {
 			Likes         int
 			Dislikes      int
 			CategoryTitle string
+			TopicTags     []struct {
+				Name string
+				Slug string
+			}
+			// only for premium accounts
+			CompanyTagStats string
 		}
 	}
 	DownloadedAt time.Time
@@ -86,6 +92,11 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 				likes
 				dislikes
 				categoryTitle
+				topicTags {
+					name
+					slug
+				}
+				companyTagStats
 			}
 		}`,
 		"variables": map[string]string{
@@ -120,7 +131,7 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 	})
 	c.OnResponse(func(r *colly.Response) {
 		log.Debug().Msgf("%s %s %d", r.Request.Method, r.Request.URL, r.StatusCode)
-		//log.Debug().Msg(string(r.Body))
+		log.Trace().Msg(string(r.Body))
 
 		var q Question
 		err := json.Unmarshal(r.Body, &q)
