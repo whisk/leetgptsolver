@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gocolly/colly"
 	"github.com/rs/zerolog"
@@ -27,14 +28,19 @@ type QuestionSlug struct {
 type Question struct {
 	Data struct {
 		Question struct {
-			Id         string `json:"questionFrontendId"`
-			Content    string
-			Difficulty string
-			Title      string
-			TitleSlug  string
-			IsPaidOnly bool `json:"isPaidOnly"`
+			Id            string `json:"questionFrontendId"`
+			Content       string
+			Difficulty    string
+			Title         string
+			TitleSlug     string
+			IsPaidOnly    bool `json:"isPaidOnly"`
+			Stats         string
+			Likes         int
+			Dislikes      int
+			CategoryTitle string
 		}
 	}
+	DownloadedAt time.Time
 }
 
 func main() {
@@ -46,43 +52,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to get questions slugs")
 	}
 
-	c := colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"),
-	)
-	c.OnRequest(func(r *colly.Request) {
-		r.Headers.Set("Content-Type", "application/json")
-		log.Debug().Msgf("Visiting: %s", r.URL)
-	})
-	c.OnResponse(func(r *colly.Response) {
-		log.Debug().Msgf("%s %s %d", r.Request.Method, r.Request.URL, r.StatusCode)
-
-		var q Question
-		err := json.Unmarshal(r.Body, &q)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to unmarshall question from json")
-			return
-		}
-
-		err = saveQuestion(q)
-		if err != nil {
-			log.Error().Err(err)
-			return
-		}
-	})
-	c.OnError(func(r *colly.Response, e error) {
-		fmt.Println("error:", e, r.Request.URL, string(r.Body))
-	})
-	for _, qs := range questionSlugs {
-		if qs.PaidOnly {
-			continue
-		}
-		queryBytes, err := makeQuestionQuery(qs)
-		if err != nil {
-			log.Error().Err(err)
-		}
-		c.PostRaw("https://leetcode.com/graphql", queryBytes)
-	}
-	c.Wait()
+	downloadQuestions(questionSlugs, "downloaded-questions")
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
@@ -104,14 +74,19 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 		"query": `query questionContent($titleSlug: String!) 
 		{
 			question(titleSlug: $titleSlug) {
-			questionFrontendId
-			content
-			mysqlSchemas
-			dataSchemas
-			difficulty
-			title
-			titleSlug
-			isPaidOnly}
+				questionFrontendId
+				content
+				mysqlSchemas
+				dataSchemas
+				difficulty
+				title
+				titleSlug			
+				isPaidOnly
+				stats
+				likes
+				dislikes
+				categoryTitle
+			}
 		}`,
 		"variables": map[string]string{
 			"titleSlug": q.Stat.TitleSlug,
@@ -126,7 +101,65 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	return queryBytes, nil
 }
 
-func saveQuestion(q Question) error {
+func downloadQuestions(slugs []QuestionSlug, destDir string) int {
+	downloadedCnt := 0
+	requestsCnt := 0
+
+	c := colly.NewCollector(
+		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"),
+		colly.Async(true),
+	)
+	c.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: 2,
+		RandomDelay: 5 * time.Second,
+	})
+
+	c.OnRequest(func(r *colly.Request) {
+		r.Headers.Set("Content-Type", "application/json")
+	})
+	c.OnResponse(func(r *colly.Response) {
+		log.Debug().Msgf("%s %s %d", r.Request.Method, r.Request.URL, r.StatusCode)
+		//log.Debug().Msg(string(r.Body))
+
+		var q Question
+		err := json.Unmarshal(r.Body, &q)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to unmarshall question from json")
+			return
+		}
+
+		err = downloadQuestion(q, destDir)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to download question")
+			return
+		}
+		downloadedCnt += 1
+	})
+	c.OnError(func(r *colly.Response, e error) {
+		log.Error().Err(e).Msgf("Failed to fetch URL %s", r.Request.URL)
+	})
+
+	for _, qs := range slugs {
+		if qs.PaidOnly {
+			continue
+		}
+		queryBytes, err := makeQuestionQuery(qs)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to make a query")
+		}
+		c.PostRaw("https://leetcode.com/graphql", queryBytes)
+		requestsCnt += 1
+	}
+	log.Debug().Msgf("%d requests queued", requestsCnt)
+	c.Wait()
+
+	return downloadedCnt
+}
+
+func downloadQuestion(q Question, destDir string) error {
+	q.DownloadedAt = time.Now()
+
 	var jsonBytes bytes.Buffer
 	enc := json.NewEncoder(&jsonBytes)
 	enc.SetEscapeHTML(false)
@@ -135,7 +168,7 @@ func saveQuestion(q Question) error {
 		return fmt.Errorf("Failed to marshall question to json: %w", err)
 	}
 	filename := q.Data.Question.Id + "-" + q.Data.Question.TitleSlug + ".json"
-	file, err := os.Create("questions/" + filename)
+	file, err := os.Create(destDir + "/" + filename)
 	if err != nil {
 		return err
 	}
