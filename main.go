@@ -126,9 +126,6 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 		RandomDelay: 5 * time.Second,
 	})
 
-	c.OnRequest(func(r *colly.Request) {
-		r.Headers.Set("Content-Type", "application/json")
-	})
 	c.OnResponse(func(r *colly.Response) {
 		log.Debug().Msgf("%s %s %d", r.Request.Method, r.Request.URL, r.StatusCode)
 		log.Trace().Msg(string(r.Body))
@@ -151,6 +148,9 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 		log.Error().Err(e).Msgf("Failed to fetch URL %s", r.Request.URL)
 	})
 
+	hdr := http.Header{
+		"Content-Type": {"application/json"},
+	}
 	for _, qs := range slugs {
 		if qs.PaidOnly {
 			continue
@@ -159,7 +159,13 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to make a query")
 		}
-		c.PostRaw("https://leetcode.com/graphql", queryBytes)
+		c.Request(
+			"POST",
+			"https://leetcode.com/graphql",
+			bytes.NewBuffer(queryBytes),
+			&colly.Context{},
+			hdr,
+		)
 		requestsCnt += 1
 	}
 	log.Debug().Msgf("%d requests queued", requestsCnt)
