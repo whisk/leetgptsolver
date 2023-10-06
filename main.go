@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
-	"github.com/thedevsaddam/gojsonq/v2"
 )
 
 // used only to scrap question content
@@ -79,12 +79,21 @@ func getQuestionSlugs() ([]QuestionSlug, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	var slugs []QuestionSlug
-	gojsonq.New().Reader(resp.Body).From("stat_status_pairs").Out(&slugs)
+	data := struct {
+		StatStatusPairs []QuestionSlug `json:"stat_status_pairs"`
+	}{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return nil, err
+	}
 
-	log.Info().Msgf("Got %d question slugs", len(slugs))
-	return slugs, nil
+	log.Info().Msgf("Got %d question slugs", len(data.StatStatusPairs))
+	return data.StatStatusPairs, nil
 }
 
 func makeQuestionQuery(q QuestionSlug) ([]byte, error) {

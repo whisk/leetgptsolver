@@ -6,7 +6,6 @@ require (
 	github.com/gocolly/colly v1.2.0
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.16.0
-	github.com/thedevsaddam/gojsonq/v2 v2.5.2
 )
 
 require (
