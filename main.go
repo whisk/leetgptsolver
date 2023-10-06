@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,12 +14,14 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 	"github.com/thedevsaddam/gojsonq/v2"
 )
 
 // used only to scrap question content
 type QuestionSlug struct {
 	Stat struct {
+		Id        int    `json:"frontend_question_id"`
 		TitleSlug string `json:"question__title_slug"`
 	}
 	PaidOnly bool `json:"paid_only"`
@@ -52,6 +55,15 @@ type Question struct {
 func main() {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
+
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to read config file")
+	}
 
 	questionSlugs, err := getQuestionSlugs()
 	if err != nil {
@@ -112,7 +124,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	return queryBytes, nil
 }
 
-func downloadQuestions(slugs []QuestionSlug, destDir string) int {
+func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	downloadedCnt := 0
 	requestsCnt := 0
 
@@ -123,11 +135,11 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
-		RandomDelay: 5 * time.Second,
+		RandomDelay: 60 * time.Second,
 	})
 
 	c.OnResponse(func(r *colly.Response) {
-		log.Debug().Msgf("%s %s %d", r.Request.Method, r.Request.URL, r.StatusCode)
+		log.Debug().Msgf("%s %s %s %d", r.Request.Method, r.Request.URL, r.Ctx.Get("dstFile"), r.StatusCode)
 		log.Trace().Msg(string(r.Body))
 
 		var q Question
@@ -137,7 +149,12 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 			return
 		}
 
-		err = downloadQuestion(q, destDir)
+		dstFile := r.Ctx.Get("dstFile")
+		if dstFile == "" {
+			log.Error().Msg("No context found")
+			return
+		}
+		err = downloadQuestion(q, dstFile)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to download question")
 			return
@@ -145,7 +162,7 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 		downloadedCnt += 1
 	})
 	c.OnError(func(r *colly.Response, e error) {
-		log.Error().Err(e).Msgf("Failed to fetch URL %s", r.Request.URL)
+		log.Error().Err(e).Msgf("Failed to fetch question %s", r.Request.Ctx.Get("dstFile"))
 	})
 
 	hdr := http.Header{
@@ -155,15 +172,23 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 		if qs.PaidOnly {
 			continue
 		}
+		dstFile := dstDir + "/" + fmt.Sprintf("%d-%s.json", qs.Stat.Id, qs.Stat.TitleSlug)
+		ok, _ := fileExists(dstFile)
+		if ok {
+			log.Info().Msgf("file %s already exists", dstFile)
+			continue
+		}
 		queryBytes, err := makeQuestionQuery(qs)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to make a query")
 		}
+		ctx := colly.NewContext()
+		ctx.Put("dstFile", dstFile)
 		c.Request(
 			"POST",
 			"https://leetcode.com/graphql",
 			bytes.NewBuffer(queryBytes),
-			&colly.Context{},
+			ctx,
 			hdr,
 		)
 		requestsCnt += 1
@@ -174,7 +199,7 @@ func downloadQuestions(slugs []QuestionSlug, destDir string) int {
 	return downloadedCnt
 }
 
-func downloadQuestion(q Question, destDir string) error {
+func downloadQuestion(q Question, destFile string) error {
 	q.DownloadedAt = time.Now()
 
 	var jsonBytes bytes.Buffer
@@ -182,10 +207,9 @@ func downloadQuestion(q Question, destDir string) error {
 	enc.SetEscapeHTML(false)
 	err := enc.Encode(q)
 	if err != nil {
-		return fmt.Errorf("Failed to marshall question to json: %w", err)
+		return fmt.Errorf("failed to marshall question to json: %w", err)
 	}
-	filename := q.Data.Question.Id + "-" + q.Data.Question.TitleSlug + ".json"
-	file, err := os.Create(destDir + "/" + filename)
+	file, err := os.Create(destFile)
 	if err != nil {
 		return err
 	}
@@ -197,4 +221,21 @@ func downloadQuestion(q Question, destDir string) error {
 	log.Debug().Msgf("Wrote %d bytes", n)
 
 	return nil
+}
+
+func fileExists(name string) (bool, error) {
+	_, err := os.Stat(name)
+	if err == nil {
+		// file apparently exists
+		return true, nil
+	} else {
+		// got error, let's see
+		if errors.Is(err, os.ErrNotExist) {
+			// file not exists, so no actual error here
+			return false, nil
+		} else {
+			// other error
+			return false, err
+		}
+	}
 }
