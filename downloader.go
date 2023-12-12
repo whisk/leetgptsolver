@@ -27,26 +27,30 @@ type QuestionSlug struct {
 	PaidOnly bool `json:"paid_only"`
 }
 
-// used for actual question content
-type Question struct {
-	Data struct {
-		Question struct {
-			Id            string `json:"questionFrontendId"`
-			Content       string
-			Difficulty    string
-			Title         string
-			TitleSlug     string
-			IsPaidOnly    bool `json:"isPaidOnly"`
-			Stats         string
-			Likes         int
-			Dislikes      int
-			CategoryTitle string
-			TopicTags     []struct {
-				Name string
-				Slug string
+// used for actual content for questions, solutions and submission results
+type Problem struct {
+	// this is what we get from leetcode
+	// structure left as is thats why tedious "Question.Data.Question"
+	Question struct {
+		Data struct {
+			Question struct {
+				Id            string `json:"questionFrontendId"`
+				Content       string
+				Difficulty    string
+				Title         string
+				TitleSlug     string
+				IsPaidOnly    bool `json:"isPaidOnly"`
+				Stats         string
+				Likes         int
+				Dislikes      int
+				CategoryTitle string
+				TopicTags     []struct {
+					Name string
+					Slug string
+				}
+				// only for premium accounts
+				CompanyTagStats string
 			}
-			// only for premium accounts
-			CompanyTagStats string
 		}
 	}
 	DownloadedAt time.Time
@@ -54,7 +58,9 @@ type Question struct {
 
 func main() {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
+	consoleWriter := zerolog.NewConsoleWriter()
+	consoleWriter.TimeFormat = time.DateTime
+	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()
 
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config")
@@ -70,7 +76,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to get questions slugs")
 	}
 
-	downloadQuestions(questionSlugs, "downloaded-questions")
+	downloadQuestions(questionSlugs, "problems")
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
@@ -151,8 +157,9 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		log.Debug().Msgf("%s %s %s %d", r.Request.Method, r.Request.URL, r.Ctx.Get("dstFile"), r.StatusCode)
 		log.Trace().Msg(string(r.Body))
 
-		var q Question
-		err := json.Unmarshal(r.Body, &q)
+		var problem Problem
+		problem.DownloadedAt = time.Now()
+		err := json.Unmarshal(r.Body, &problem.Question)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to unmarshall question from json")
 			return
@@ -163,7 +170,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			log.Error().Msg("No context found")
 			return
 		}
-		err = downloadQuestion(q, dstFile)
+		err = saveProblem(problem, dstFile)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to download question")
 			return
@@ -208,15 +215,13 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	return downloadedCnt
 }
 
-func downloadQuestion(q Question, destFile string) error {
-	q.DownloadedAt = time.Now()
-
+func saveProblem(p Problem, destFile string) error {
 	var jsonBytes bytes.Buffer
 	enc := json.NewEncoder(&jsonBytes)
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(q)
+	err := enc.Encode(p)
 	if err != nil {
-		return fmt.Errorf("failed to marshall question to json: %w", err)
+		return fmt.Errorf("failed to marshall problem to json: %w", err)
 	}
 	file, err := os.Create(destFile)
 	if err != nil {
