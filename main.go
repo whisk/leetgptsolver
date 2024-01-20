@@ -33,7 +33,7 @@ type Problem struct {
 				Difficulty    string
 				Title         string
 				TitleSlug     string
-				IsPaidOnly    bool `json:"isPaidOnly"`
+				IsPaidOnly    bool
 				Stats         string
 				Likes         int
 				Dislikes      int

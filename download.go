@@ -7,11 +7,15 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gocolly/colly"
 	"github.com/rs/zerolog/log"
 )
+
+const MAX_CONSECUTIVE_ERRORS = 5
 
 func download() {
 	questionSlugs, err := getQuestionSlugs()
@@ -47,7 +51,7 @@ func getQuestionSlugs() ([]QuestionSlug, error) {
 
 func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	query := map[string]interface{}{
-		"query": `query questionContent($titleSlug: String!) 
+		"query": `query questionContent($titleSlug: String!)
 		{
 			question(titleSlug: $titleSlug) {
 				questionFrontendId
@@ -56,7 +60,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 				dataSchemas
 				difficulty
 				title
-				titleSlug			
+				titleSlug
 				isPaidOnly
 				stats
 				likes
@@ -90,6 +94,8 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	downloadedCnt := 0
 	requestsCnt := 0
+	consecutiveErrors := 0
+	var exitSignal os.Signal = nil
 
 	c := colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"),
@@ -104,7 +110,21 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		RandomDelay: 10 * time.Second,
 	})
 
+	signalChan := make(chan os.Signal, 1)
+	go func() {
+		s := <-signalChan
+		log.Info().Msgf("Got %v, terminating...", s)
+		exitSignal = s
+	}()
+
 	c.OnResponse(func(r *colly.Response) {
+		consecutiveErrors = 0
+		if exitSignal != nil {
+			log.Info().Msg("Terminated by user")
+			// we don't like os.Exit, but it seems that colly doesn't have a good way to stop parallel requests
+			code, _ := exitSignal.(syscall.Signal)
+			os.Exit(int(code))
+		}
 		log.Debug().Msgf("%s %s %s %d", r.Request.Method, r.Request.URL, r.Ctx.Get("dstFile"), r.StatusCode)
 		log.Trace().Msg(string(r.Body))
 
@@ -121,7 +141,12 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			log.Error().Msg("No context found")
 			return
 		}
+
+		// we don't want interruptions while saving the data
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 		err = saveProblem(problem, dstFile)
+		signal.Reset()
+
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to download question")
 			return
@@ -130,6 +155,11 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	})
 	c.OnError(func(r *colly.Response, e error) {
 		log.Error().Err(e).Msgf("Failed to fetch question %s", r.Request.Ctx.Get("dstFile"))
+		consecutiveErrors += 1
+		if consecutiveErrors >= MAX_CONSECUTIVE_ERRORS {
+			log.Error().Msgf("Too many errors (%d), aborting...", consecutiveErrors)
+			os.Exit(1)
+		}
 	})
 
 	hdr := http.Header{
