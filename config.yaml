@@ -1,1 +1,3 @@
 chatgpt_api_key: sk-your-key-here
+leetcode_session: "your-session-here"
+leetcode_csrf_token: "your-token-here"

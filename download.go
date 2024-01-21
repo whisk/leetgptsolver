@@ -23,7 +23,7 @@ func download() {
 		log.Fatal().Err(err).Msg("Failed to get questions slugs")
 	}
 
-	downloadQuestions(questionSlugs, "problems")
+	downloadQuestions(questionSlugs, PROBLEMS_DIR)
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
@@ -85,7 +85,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	}
 	queryBytes, err := json.Marshal(query)
 	if err != nil {
-		return nil, fmt.Errorf("Error marshalling GraphQL: %w", err)
+		return nil, fmt.Errorf("failed marshalling GraphQL: %w", err)
 	}
 
 	return queryBytes, nil
@@ -98,7 +98,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	var exitSignal os.Signal = nil
 
 	c := colly.NewCollector(
-		colly.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"),
+		colly.UserAgent(HTTP_USER_AGENT),
 		colly.Async(true),
 	)
 	c.WithTransport(&http.Transport{
@@ -129,10 +129,10 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		log.Trace().Msg(string(r.Body))
 
 		var problem Problem
-		problem.DownloadedAt = time.Now()
+		problem.Question.DownloadedAt = time.Now()
 		err := json.Unmarshal(r.Body, &problem.Question)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to unmarshall question from json")
+			log.Err(err).Msg("Failed to unmarshall question from json")
 			return
 		}
 
@@ -148,7 +148,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		signal.Reset()
 
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to download question")
+			log.Err(err).Msg("Failed to download question")
 			return
 		}
 		downloadedCnt += 1
@@ -177,7 +177,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 		queryBytes, err := makeQuestionQuery(qs)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to make a query")
+			log.Err(err).Msg("Failed to make a query")
 		}
 		ctx := colly.NewContext()
 		ctx.Put("dstFile", dstFile)
@@ -194,26 +194,4 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	c.Wait()
 
 	return downloadedCnt
-}
-
-func saveProblem(p Problem, destFile string) error {
-	var jsonBytes bytes.Buffer
-	enc := json.NewEncoder(&jsonBytes)
-	enc.SetEscapeHTML(false)
-	err := enc.Encode(p)
-	if err != nil {
-		return fmt.Errorf("failed to marshall problem to json: %w", err)
-	}
-	file, err := os.Create(destFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	n, err := jsonBytes.WriteTo(file)
-	if err != nil {
-		return err
-	}
-	log.Debug().Msgf("Wrote %d bytes", n)
-
-	return nil
 }
