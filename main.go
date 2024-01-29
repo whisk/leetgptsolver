@@ -33,8 +33,8 @@ type QuestionSlug struct {
 type Problem struct {
 	// this is what we get from leetcode
 	// structure left as is thats why tedious "Question.Data.Question"
-	Question Question
-	Solutions []Solution
+	Question    Question
+	Solutions   []Solution
 	Submissions []Submission
 }
 
@@ -56,9 +56,9 @@ type Question struct {
 				Slug string
 			}
 			CodeSnippets []struct {
-				Lang string
+				Lang     string
 				LangSlug string
-				Code string
+				Code     string
 			}
 			// only for premium accounts
 			CompanyTagStats string
@@ -68,33 +68,33 @@ type Question struct {
 }
 
 type Solution struct {
-	Lang string
-	Prompt string
-	Answer string
+	Lang      string
+	Prompt    string
+	Answer    string
 	TypedCode string
-	SolvedAt time.Time
-	Model string
+	SolvedAt  time.Time
+	Model     string
 }
 
 // this we submit to leetcode
 type SubmitRequest struct {
-	Lang string `json:"lang"`
+	Lang       string `json:"lang"`
 	QuestionId string `json:"question_id"`
-	TypedCode string `json:"typed_code"`
+	TypedCode  string `json:"typed_code"`
 }
 
 // this we get from leetcode
 type CheckResponse struct {
-	StatusCode int32 `json:"status_code"`
-	StatusMsg string `json:"status_msg"`
-	Finished bool
-	State string
+	StatusCode int32  `json:"status_code"`
+	StatusMsg  string `json:"status_msg"`
+	Finished   bool
+	State      string
 }
 
 type Submission struct {
 	SubmitRequest SubmitRequest
-	SubmittedAt time.Time
-	SubmissionId uint64
+	SubmittedAt   time.Time
+	SubmissionId  uint64
 	CheckResponse CheckResponse
 }
 
@@ -149,11 +149,11 @@ func saveProblem(p Problem, destFile string) error {
 func readProblem(p *Problem, srcFile string) error {
 	contents, err := os.ReadFile(srcFile)
 	if err != nil {
-		return fmt.Errorf("Failed to read problem from file: %w", err)
+		return fmt.Errorf("failed to read problem from file: %w", err)
 	}
 	err = json.Unmarshal(contents, &p)
 	if err != nil {
-		return fmt.Errorf("Failed to unmarshall problem from json: %w", err)
+		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
 	return nil
 }

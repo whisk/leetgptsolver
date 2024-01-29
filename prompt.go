@@ -70,19 +70,19 @@ func promptChatGPT(q Question) (*Solution, error) {
 	answer := resp.Choices[0].Message.Content
 	log.Debug().Msgf("Got answer:\n%s", answer)
 	return &Solution{
-		Lang: lang,
-		Prompt: prompt,
-		Answer: answer,
+		Lang:      lang,
+		Prompt:    prompt,
+		Answer:    answer,
 		TypedCode: extractCode(answer),
-		Model: resp.Model,
-		SolvedAt: time.Now(),
+		Model:     resp.Model,
+		SolvedAt:  time.Now(),
 	}, nil
 }
 
 func makePrompt(q Question) (string, string, error) {
 	selectedSnippet := ""
 	selectedLang := ""
-	outerLoop:
+outerLoop:
 	for _, lang := range PREFERRED_LANGUAGES {
 		for _, snippet := range q.Data.Question.CodeSnippets {
 			if snippet.LangSlug == lang {
@@ -100,15 +100,15 @@ func makePrompt(q Question) (string, string, error) {
 	question := p.Sanitize(q.Data.Question.Content)
 
 	prompt := "Hi, this is a coding interview. I will give you a problem statement with sample test cases and a code snippet. " +
-	"I expect you to write the most effective working code using " + selectedLang + " programming language. " +
-	"Here is the problem statement: \n" +
-	question + "\n\n" +
-	"Your code should solve the given problem fully and correctly.\n" +
-	"Here is the code snippet, you should expand it with your code: \n" +
-	selectedSnippet + "\n\n" +
-	"Please do not alter function signature(s) in the code snippet. " +
-	"Please output only valid source code which could be run as-is without any fixes, improvements or changes. " +
-	"Good luck!"
+		"I expect you to write the most effective working code using " + selectedLang + " programming language. " +
+		"Here is the problem statement: \n" +
+		question + "\n\n" +
+		"Your code should solve the given problem fully and correctly.\n" +
+		"Here is the code snippet, you should expand it with your code: \n" +
+		selectedSnippet + "\n\n" +
+		"Please do not alter function signature(s) in the code snippet. " +
+		"Please output only valid source code which could be run as-is without any fixes, improvements or changes. " +
+		"Good luck!"
 
 	return selectedLang, prompt, nil
 }

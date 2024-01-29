@@ -39,9 +39,9 @@ func submit(files []string) {
 
 func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 	subReq := SubmitRequest{
-		Lang: s.Lang,
+		Lang:       s.Lang,
 		QuestionId: q.Data.Question.Id,
-		TypedCode: s.TypedCode,
+		TypedCode:  s.TypedCode,
 	}
 
 	url := "https://leetcode.com/problems/" + q.Data.Question.TitleSlug + "/submit/"
@@ -51,14 +51,14 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 	}
 	url = fmt.Sprintf("https://leetcode.com/submissions/detail/%d/check/", submissionId)
 
-	checkResponse, err := checkStatus(url, submissionId, 30 * time.Second)
+	checkResponse, err := checkStatus(url, submissionId, 30*time.Second)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Submission{
 		SubmitRequest: subReq,
-		SubmissionId: submissionId,
+		SubmissionId:  submissionId,
 		CheckResponse: *checkResponse,
 	}, nil
 }
@@ -109,7 +109,7 @@ func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*C
 		}
 		time.Sleep(d)
 		t += d
-		d = min(d * 2, maxWaitTime - t)
+		d = min(d*2, maxWaitTime-t)
 	}
 	return nil, errors.New("server have not checked the solution in a timely manner")
 }

@@ -58,10 +58,10 @@ func getHeader() http.Header {
 	token := viper.GetString("leetcode_csrf_token")
 	session := viper.GetString("leetcode_session")
 	return http.Header{
-		"Content-Type": {"application/json"},
-		"User-Agent": {HTTP_USER_AGENT},
+		"Content-Type":    {"application/json"},
+		"User-Agent":      {HTTP_USER_AGENT},
 		"Referrer-Policy": {"strict-origin-when-cross-origin"},
-		"Cookie": {"LEETCODE_SESSION=" + session + "; csrftoken=" + token + "; "},
-		"X-Csrftoken": {token},
+		"Cookie":          {"LEETCODE_SESSION=" + session + "; csrftoken=" + token + "; "},
+		"X-Csrftoken":     {token},
 	}
 }
