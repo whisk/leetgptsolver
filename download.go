@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 	"time"
 
@@ -169,7 +170,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		if qs.PaidOnly {
 			continue
 		}
-		dstFile := dstDir + "/" + fmt.Sprintf("%d-%s.json", qs.Stat.Id, qs.Stat.TitleSlug)
+		dstFile := path.Join(dstDir, fmt.Sprintf("%d-%s.json", qs.Stat.Id, qs.Stat.TitleSlug))
 		ok, _ := fileExists(dstFile)
 		if ok {
 			log.Info().Msgf("file %s already exists", dstFile)
