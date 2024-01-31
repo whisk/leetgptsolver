@@ -47,7 +47,7 @@ func promptChatGPT(q Question) (*Solution, error) {
 		return nil, err
 	}
 
-	log.Trace().Msgf("Generated prompt:\n%s", prompt)
+	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
@@ -96,8 +96,7 @@ outerLoop:
 		return "", "", errors.New("failed to find code snippet")
 	}
 
-	p := bluemonday.StrictPolicy()
-	question := p.Sanitize(q.Data.Question.Content)
+	question := htmlToPlaintext(q.Data.Question.Content)
 
 	prompt := "Hi, this is a coding interview. I will give you a problem statement with sample test cases and a code snippet. " +
 		"I expect you to write the most effective working code using " + selectedLang + " programming language. " +
@@ -111,6 +110,31 @@ outerLoop:
 		"Good luck!"
 
 	return selectedLang, prompt, nil
+}
+
+func htmlToPlaintext(s string) string {
+	// add newlines where necessary
+	s = strings.ReplaceAll(s, "<br>", "<br>\n")
+	s = strings.ReplaceAll(s, "<br/>", "<br/>\n")
+	s = strings.ReplaceAll(s, "</p>", "</p>\n")
+
+	// handle superscript <sup>...</sup>
+	s = regexp.MustCompile(`\<sup\>(.*?)\<\/sup\>`).ReplaceAllString(s, "^$1")
+
+	// strip html tags
+	p := bluemonday.StrictPolicy()
+	s = p.Sanitize(s)
+
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&quot;", `"`)
+	s = strings.ReplaceAll(s, "&amp;", "&")
+
+	// collapse multiple newlines
+	s = regexp.MustCompile(`\s+$`).ReplaceAllString(s, "")
+	s = regexp.MustCompile(`\n+`).ReplaceAllString(s, "\n")
+
+	return s
 }
 
 func extractCode(answer string) string {
