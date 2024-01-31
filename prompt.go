@@ -142,11 +142,7 @@ func extractCode(answer string) string {
 	m := re.FindStringSubmatch(answer)
 	if m == nil {
 		// maybe answer is the code itself?
-		return addCodeAnnotation(answer)
+		return answer
 	}
-	return addCodeAnnotation(m[1])
-}
-
-func addCodeAnnotation(code string) string {
-	return "# leetgptsolver submission\n" + code
+	return m[1]
 }
