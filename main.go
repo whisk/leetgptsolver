@@ -10,6 +10,8 @@ import (
 	fs "io/fs"
 	"os"
 	"path"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -31,9 +33,9 @@ type QuestionSlug struct {
 
 // used for actual content for questions, solutions and submission results
 type Problem struct {
-	Question    Question
-	Solutions   []Solution
-	Submissions []Submission
+	Question   Question
+	Solution   Solution
+	Submission Submission
 }
 
 type Question struct {
@@ -165,10 +167,12 @@ func problemTsvHeader() []byte {
 		"Id",
 		"Title",
 		"Url",
+		"IsPaidOnly",
 		"Difficulty",
 		"Likes",
 		"Dislikes",
-		"ContentExtras",
+		"ContentFeatures",
+		"SnippetFeatures",
 		"Model",
 		"SolvedAt",
 		"StatusMsg",
@@ -188,14 +192,16 @@ func problemToTsv(p Problem) []byte {
 		p.Question.Data.Question.Id,
 		p.Question.Data.Question.Title,
 		p.Url(),
+		fmt.Sprintf("%v", p.Question.Data.Question.IsPaidOnly),
 		p.Question.Data.Question.Difficulty,
 		fmt.Sprintf("%d", p.Question.Data.Question.Likes),
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
-		p.QuestionContentExtras(),
-		"<model>",
-		"<solvedAt>",
-		"<statusMsg>",
-		"<submittedAt>",
+		p.Question.ContentFeatures(),
+		p.Question.SnippetFeatures(),
+		p.Solution.Model,
+		humanizeTime(p.Solution.SolvedAt),
+		p.Submission.CheckResponse.StatusMsg,
+		humanizeTime(p.Submission.SubmittedAt),
 	}
 	var buf bytes.Buffer
 	for _, f := range fields {
@@ -207,10 +213,53 @@ func problemToTsv(p Problem) []byte {
 }
 
 func (p Problem) Url() string {
-	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug
+	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug + "/"
 }
 
-func (p Problem) QuestionContentExtras() string {
+func (q Question) FindSnippet(languages []string) (string, string) {
+	selectedSnippet := ""
+	selectedLang := ""
+outerLoop:
+	for _, lang := range PREFERRED_LANGUAGES {
+		for _, snippet := range q.Data.Question.CodeSnippets {
+			if snippet.LangSlug == lang {
+				selectedSnippet = snippet.Code
+				selectedLang = lang
+				break outerLoop
+			}
+		}
+
+	}
+
+	return selectedSnippet, selectedLang
+}
+
+func (q Question) ContentFeatures() string {
+	var features []string
+	// has links
+	if regexp.MustCompile(`<a\s+`).MatchString(q.Data.Question.Content) {
+		features = append(features, "a")
+	}
+	// has images
+	if regexp.MustCompile(`<img\s+`).MatchString(q.Data.Question.Content) {
+		features = append(features, "img")
+	}
+
+	return strings.Join(features, ",")
+}
+
+func (q Question) SnippetFeatures() string {
+	snippet, _ := q.FindSnippet(PREFERRED_LANGUAGES)
+
+	// remove multiline python comments
+	snippet = regexp.MustCompile(`(?ms)""".+"""`).ReplaceAllString(snippet, "")
+
+	// more than 1 function in the code snippet to implement
+	m := regexp.MustCompile(`(?m)^\s*def\s+`).FindAllString(snippet, -1)
+	if len(m) > 1 {
+		return "multi"
+	}
+
 	return ""
 }
 
@@ -242,4 +291,11 @@ func getProblemsFiles() ([]string, error) {
 		files[i] = path.Join(PROBLEMS_DIR, files[i])
 	}
 	return files, nil
+}
+
+func humanizeTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.DateTime)
 }

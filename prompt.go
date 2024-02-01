@@ -31,7 +31,7 @@ func prompt(files []string) {
 		}
 		log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
-		problem.Solutions = []Solution{*solution}
+		problem.Solution = *solution
 		err = saveProblem(problem, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the solution")
@@ -80,18 +80,8 @@ func promptChatGPT(q Question) (*Solution, error) {
 }
 
 func makePrompt(q Question) (string, string, error) {
-	selectedSnippet := ""
-	selectedLang := ""
-outerLoop:
-	for _, lang := range PREFERRED_LANGUAGES {
-		for _, snippet := range q.Data.Question.CodeSnippets {
-			if snippet.LangSlug == lang {
-				selectedSnippet = snippet.Code
-				selectedLang = lang
-				break outerLoop
-			}
-		}
-	}
+	selectedSnippet, selectedLang := q.FindSnippet(PREFERRED_LANGUAGES)
+
 	if selectedSnippet == "" {
 		return "", "", errors.New("failed to find code snippet")
 	}

@@ -26,14 +26,13 @@ func fix(files []string) {
 		}
 		// fixing code go here
 
-		// increase if fixes successfully
-		fixedCnt += 1
-
 		err = saveProblem(p, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the problem")
 			continue
 		}
+		// increase if fixed and saved successfully
+		fixedCnt += 1
 	}
 	log.Info().Msgf("Fixed %d/%d", fixedCnt, len(files))
 }
