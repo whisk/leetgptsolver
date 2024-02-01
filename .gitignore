@@ -17,9 +17,11 @@
 # Go workspace file
 go.work
 
-problems/*.json
-
-config.*.yaml
-
 # backups
 *.bak
+
+# project specific files
+problems/*.json
+*.tsv
+config.*.yaml
+

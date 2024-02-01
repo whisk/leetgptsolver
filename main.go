@@ -31,14 +31,14 @@ type QuestionSlug struct {
 
 // used for actual content for questions, solutions and submission results
 type Problem struct {
-	// this is what we get from leetcode
-	// structure left as is thats why tedious "Question.Data.Question"
 	Question    Question
 	Solutions   []Solution
 	Submissions []Submission
 }
 
 type Question struct {
+	// this is what we get from leetcode
+	// structure left as is thats why tedious "Question.Data.Question"
 	Data struct {
 		Question struct {
 			Id            string `json:"questionFrontendId"`
@@ -72,8 +72,8 @@ type Solution struct {
 	Prompt    string
 	Answer    string
 	TypedCode string
-	SolvedAt  time.Time
 	Model     string
+	SolvedAt  time.Time
 }
 
 // this we submit to leetcode
@@ -93,9 +93,9 @@ type CheckResponse struct {
 
 type Submission struct {
 	SubmitRequest SubmitRequest
-	SubmittedAt   time.Time
 	SubmissionId  uint64
 	CheckResponse CheckResponse
+	SubmittedAt   time.Time
 }
 
 func main() {
@@ -119,6 +119,8 @@ func main() {
 		prompt(os.Args[2:])
 	} else if os.Args[1] == "submit" {
 		submit(os.Args[2:])
+	} else if os.Args[1] == "report" {
+		report(os.Args[2:])
 	} else if os.Args[1] == "fix" {
 		fix(os.Args[2:])
 	}
@@ -156,6 +158,60 @@ func readProblem(p *Problem, srcFile string) error {
 		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
 	return nil
+}
+
+func problemTsvHeader() []byte {
+	columns := []string{
+		"Id",
+		"Title",
+		"Url",
+		"Difficulty",
+		"Likes",
+		"Dislikes",
+		"ContentExtras",
+		"Model",
+		"SolvedAt",
+		"StatusMsg",
+		"SubmittedAt",
+	}
+	var buf bytes.Buffer
+	for _, c := range columns {
+		buf.WriteString(c)
+		buf.WriteString("\t")
+	}
+	buf.WriteString("\n")
+	return buf.Bytes()
+}
+
+func problemToTsv(p Problem) []byte {
+	fields := []string{
+		p.Question.Data.Question.Id,
+		p.Question.Data.Question.Title,
+		p.Url(),
+		p.Question.Data.Question.Difficulty,
+		fmt.Sprintf("%d", p.Question.Data.Question.Likes),
+		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
+		p.QuestionContentExtras(),
+		"<model>",
+		"<solvedAt>",
+		"<statusMsg>",
+		"<submittedAt>",
+	}
+	var buf bytes.Buffer
+	for _, f := range fields {
+		buf.WriteString(f)
+		buf.WriteString("\t")
+	}
+	buf.WriteString("\n")
+	return buf.Bytes()
+}
+
+func (p Problem) Url() string {
+	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug
+}
+
+func (p Problem) QuestionContentExtras() string {
+	return ""
 }
 
 func fileExists(name string) (bool, error) {
