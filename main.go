@@ -305,3 +305,24 @@ func humanizeTime(t time.Time) string {
 	}
 	return t.Format(time.DateTime)
 }
+
+func expBackoff(maxWait time.Duration, f func() (bool, error)) error {
+	var waited time.Duration = 0
+	var t time.Duration = 1 * time.Second
+	for i := 0; ; i += 1 {
+		if waited > maxWait {
+			return fmt.Errorf("exp backoff timeout, waited for %s out of %s", waited.String(), maxWait.String())
+		}
+		finished, err := f()
+		if err != nil {
+			return err
+		}
+		if finished {
+			return nil
+		}
+		log.Debug().Msgf("Sleeping for %s", t.String())
+		time.Sleep(t)
+		waited = waited + t
+		t = min(t * 2, maxWait - waited + 1 * time.Millisecond)
+	}
+}

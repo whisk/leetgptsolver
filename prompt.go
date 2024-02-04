@@ -32,6 +32,7 @@ func prompt(files []string) {
 		log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
 		problem.Solution = *solution
+		problem.Submission = Submission{} // new solutions clears old submissions
 		err = saveProblemInto(problem, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the solution")

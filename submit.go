@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -20,6 +20,10 @@ func submit(files []string) {
 		}
 		if problem.Solution.TypedCode == "" {
 			log.Error().Msg("No solution to submit")
+			continue
+		}
+		if problem.Submission.CheckResponse.Finished {
+			log.Info().Msg("Already submitted")
 			continue
 		}
 		submission, err := submitAndCheckSolution(problem.Question, problem.Solution)
@@ -38,7 +42,6 @@ func submit(files []string) {
 }
 
 func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
-
 	subReq := SubmitRequest{
 		Lang:       s.Lang,
 		QuestionId: q.Data.Question.Id,
@@ -73,12 +76,23 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed marshalling GraphQL: %w", err)
 	}
-	log.Debug().Msgf("Submission request body:\n%s", reqBody.String())
-	respBody, err := makeAuthorizedHttpRequest("POST", url, &reqBody)
+	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
+	var respBody []byte
+	err = expBackoff(30 * time.Second, func() (bool, error) {
+		var code int
+		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
+		if code == http.StatusTooManyRequests {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		log.Debug().Msgf("Submission response body:\n%s", string(respBody))
+		return true, nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	log.Debug().Msgf("Submission response body:\n%s", string(respBody))
 
 	var respStruct map[string]uint64
 	err = json.Unmarshal(respBody, &respStruct)
@@ -95,28 +109,30 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 }
 
 func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*CheckResponse, error) {
-	var t time.Duration = 0
-	var d time.Duration = 1 * time.Second
-	for t < maxWaitTime {
-		respBody, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
+	var checkResp CheckResponse
+	err := expBackoff(maxWaitTime, func() (bool, error) {
+		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
+		if code == http.StatusTooManyRequests {
+			return false, nil
+		}
 		if err != nil {
-			return nil, err
+			return false, err
 		}
 		log.Trace().Msgf("Check response body:\n%s", string(respBody))
 
-		var checkResp CheckResponse
 		err = json.Unmarshal(respBody, &checkResp)
 		if err != nil {
-			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
+			return false, fmt.Errorf("failed unmarshalling check response: %w", err)
 		}
 		if checkResp.Finished {
-			return &checkResp, nil
+			return true, nil
 		}
-		time.Sleep(d)
-		t += d
-		d = min(d*2, maxWaitTime-t)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("server have not checked the solution in a timely manner")
+	return &checkResp, nil
 }
 
 func codeToSubmit(s Solution) string {

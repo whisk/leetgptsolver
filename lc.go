@@ -21,11 +21,11 @@ func makeNiceReferer(urlStr string) (string, error) {
 	return url.String(), nil
 }
 
-func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]byte, error) {
+func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]byte, int, error) {
 	log.Debug().Msgf("%s %s", method, url)
 	req, err := http.NewRequest(method, url, reqBody)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	c := http.DefaultClient
@@ -38,20 +38,20 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to do the request: %w", err)
+		return nil, 0, fmt.Errorf("failed to do the request: %w", err)
 	}
 	log.Debug().Msg(resp.Status)
 
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, 0, fmt.Errorf("failed to read response body: %w", err)
 	}
 	log.Debug().Msgf("Got %d bytes body", len(respBody))
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("got HTTP response %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("got HTTP response %d", resp.StatusCode)
 	}
-	return respBody, nil
+	return respBody, resp.StatusCode, nil
 }
 
 func getHeader() http.Header {
