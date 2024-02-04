@@ -25,8 +25,8 @@ const HTTP_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWe
 // used only to scrap question content
 type QuestionSlug struct {
 	Stat struct {
-		Id        int    `json:"frontend_question_id"`
-		TitleSlug string `json:"question__title_slug"`
+		FrontendId int    `json:"frontend_question_id"`
+		TitleSlug  string `json:"question__title_slug"`
 	}
 	PaidOnly bool `json:"paid_only"`
 }
@@ -36,6 +36,7 @@ type Problem struct {
 	Question   Question
 	Solution   Solution
 	Submission Submission
+	Path       string `json:"-"`
 }
 
 type Question struct {
@@ -43,7 +44,8 @@ type Question struct {
 	// structure left as is thats why tedious "Question.Data.Question"
 	Data struct {
 		Question struct {
-			Id            string `json:"questionFrontendId"`
+			FrontendId    string `json:"questionFrontendId"`
+			Id            string `json:"questionId"`
 			Content       string
 			Difficulty    string
 			Title         string
@@ -128,7 +130,8 @@ func main() {
 	}
 }
 
-func saveProblem(p Problem, destFile string) error {
+// should we use path field to save to, not a separate argument?
+func saveProblemInto(p Problem, destPath string) error {
 	var jsonBytes bytes.Buffer
 	enc := json.NewEncoder(&jsonBytes)
 	enc.SetEscapeHTML(false)
@@ -136,7 +139,7 @@ func saveProblem(p Problem, destFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshall problem to json: %w", err)
 	}
-	file, err := os.Create(destFile)
+	file, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
@@ -145,13 +148,13 @@ func saveProblem(p Problem, destFile string) error {
 	if err != nil {
 		return err
 	}
-	log.Debug().Msgf("Wrote %d bytes into %s", n, destFile)
+	log.Debug().Msgf("Wrote %d bytes into %s", n, destPath)
 
 	return nil
 }
 
-func readProblem(p *Problem, srcFile string) error {
-	contents, err := os.ReadFile(srcFile)
+func readProblem(p *Problem, srcPath string) error {
+	contents, err := os.ReadFile(srcPath)
 	if err != nil {
 		return fmt.Errorf("failed to read problem from file: %w", err)
 	}
@@ -159,6 +162,7 @@ func readProblem(p *Problem, srcFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
+	p.Path = srcPath
 	return nil
 }
 
@@ -167,6 +171,7 @@ func problemTsvHeader() []byte {
 		"Id",
 		"Title",
 		"Url",
+		"Path",
 		"IsPaidOnly",
 		"Difficulty",
 		"Likes",
@@ -189,9 +194,10 @@ func problemTsvHeader() []byte {
 
 func problemToTsv(p Problem) []byte {
 	fields := []string{
-		p.Question.Data.Question.Id,
+		p.Question.Data.Question.FrontendId,
 		p.Question.Data.Question.Title,
 		p.Url(),
+		p.Path,
 		fmt.Sprintf("%v", p.Question.Data.Question.IsPaidOnly),
 		p.Question.Data.Question.Difficulty,
 		fmt.Sprintf("%d", p.Question.Data.Question.Likes),

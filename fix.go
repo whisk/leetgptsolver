@@ -26,7 +26,7 @@ func fix(files []string) {
 		}
 		// fixing code go here
 
-		err = saveProblem(p, file)
+		err = saveProblemInto(p, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the problem")
 			continue

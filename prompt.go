@@ -32,7 +32,7 @@ func prompt(files []string) {
 		log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
 		problem.Solution = *solution
-		err = saveProblem(problem, file)
+		err = saveProblemInto(problem, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the solution")
 			continue
@@ -49,16 +49,18 @@ func promptChatGPT(q Question) (*Solution, error) {
 
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
+	seed := int(42)
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
+			Model: openai.GPT4Turbo0125,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleUser,
 					Content: prompt,
 				},
 			},
+			Seed: &seed,
 		},
 	)
 	if err != nil {
@@ -118,6 +120,8 @@ func htmlToPlaintext(s string) string {
 	s = strings.ReplaceAll(s, "&lt;", "<")
 	s = strings.ReplaceAll(s, "&gt;", ">")
 	s = strings.ReplaceAll(s, "&quot;", `"`)
+	s = strings.ReplaceAll(s, "&#34;", `"`)
+	s = strings.ReplaceAll(s, "&#39;", "'")
 	s = strings.ReplaceAll(s, "&amp;", "&")
 
 	// collapse multiple newlines

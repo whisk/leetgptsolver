@@ -55,6 +55,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 		"query": `query questionContent($titleSlug: String!)
 		{
 			question(titleSlug: $titleSlug) {
+				questionId
 				questionFrontendId
 				content
 				mysqlSchemas
@@ -145,7 +146,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 
 		// we don't want interruptions while saving the data
 		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-		err = saveProblem(problem, dstFile)
+		err = saveProblemInto(problem, dstFile)
 		signal.Reset()
 
 		if err != nil {
@@ -170,7 +171,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		if qs.PaidOnly {
 			continue
 		}
-		dstFile := path.Join(dstDir, fmt.Sprintf("%d-%s.json", qs.Stat.Id, qs.Stat.TitleSlug))
+		dstFile := path.Join(dstDir, fmt.Sprintf("%d-%s.json", qs.Stat.FrontendId, qs.Stat.TitleSlug))
 		ok, _ := fileExists(dstFile)
 		if ok {
 			log.Info().Msgf("file %s already exists", dstFile)

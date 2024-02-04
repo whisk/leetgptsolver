@@ -6,7 +6,9 @@ toolchain go1.21.3
 
 require (
 	github.com/gocolly/colly v1.2.0
+	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/rs/zerolog v1.31.0
+	github.com/sashabaranov/go-openai v1.19.2
 	github.com/spf13/viper v1.16.0
 )
 
@@ -27,11 +29,9 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.26 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
-	github.com/sashabaranov/go-openai v1.17.9 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

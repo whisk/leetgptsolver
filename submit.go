@@ -29,7 +29,7 @@ func submit(files []string) {
 		}
 		log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
 		problem.Submission = *submission
-		err = saveProblem(problem, file)
+		err = saveProblemInto(problem, file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the submission")
 			continue
@@ -65,16 +65,20 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 }
 
 func submitCode(url string, subReq SubmitRequest) (uint64, error) {
-	reqBody, err := json.Marshal(subReq)
+	var reqBody bytes.Buffer
+	// use encoder, not standard json.Marshal() because we don't need to escape "<", ">" etc. in the source code
+	encoder := json.NewEncoder(&reqBody)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(subReq)
 	if err != nil {
 		return 0, fmt.Errorf("failed marshalling GraphQL: %w", err)
 	}
-	log.Trace().Msgf("Submission request body:\n%s", string(reqBody))
-	respBody, err := makeAuthorizedHttpRequest("POST", url, bytes.NewReader(reqBody))
+	log.Debug().Msgf("Submission request body:\n%s", reqBody.String())
+	respBody, err := makeAuthorizedHttpRequest("POST", url, &reqBody)
 	if err != nil {
 		return 0, err
 	}
-	log.Trace().Msgf("Submission response body:\n%s", string(respBody))
+	log.Debug().Msgf("Submission response body:\n%s", string(respBody))
 
 	var respStruct map[string]uint64
 	err = json.Unmarshal(respBody, &respStruct)
