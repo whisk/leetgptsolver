@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/vertexai/genai"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
+	"google.golang.org/api/option"
 )
 
 var PREFERRED_LANGUAGES = []string{"python3", "python"}
@@ -25,9 +29,11 @@ func prompt(files []string) {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		solution, err := promptChatGPT(problem.Question)
+		// solution, err := promptChatGPT(problem.Question)
+		solution, err := promptGemini(problem.Question)
 		if err != nil {
 			log.Err(err).Msg("Failed to get a solution")
+			continue
 		}
 		log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
@@ -80,6 +86,68 @@ func promptChatGPT(q Question) (*Solution, error) {
 		Model:     resp.Model,
 		SolvedAt:  time.Now(),
 	}, nil
+}
+
+func promptGemini(q Question) (*Solution, error) {
+	projectID := viper.GetString("gemini_project_id")
+	region := viper.GetString("gemini_region")
+	modelName := "gemini-1.0-pro"
+
+	ctx := context.Background()
+	opts := option.WithCredentialsFile(viper.GetString("gemini_credentials_file"))
+	client, err := genai.NewClient(ctx, projectID, region, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	lang, prompt, err := makePrompt(q)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug().Msgf("Generated prompt:\n%s", prompt)
+
+	gemini := client.GenerativeModel(modelName)
+	chat := gemini.StartChat()
+
+	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
+	if err != nil {
+		return nil, err
+	}
+	answer, err := geminiAnswer(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debug().Msgf("Got answer:\n%s", answer)
+	return &Solution{
+		Lang:      lang,
+		Prompt:    prompt,
+		Answer:    answer,
+		TypedCode: extractCode(answer),
+		Model:     gemini.Name(),
+		SolvedAt:  time.Now(),
+	}, nil
+}
+
+// very hackish
+func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
+	var parts []string
+	if len(r.Candidates) == 0 {
+		return "", errors.New("no candidates")
+	}
+	if len(r.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("empty output due to reason %d: %s", r.Candidates[0].FinishReason, r.Candidates[0].FinishMessage)
+	}
+	buf, err := json.Marshal(r.Candidates[0].Content.Parts)
+	if err != nil {
+		return "", err
+	}
+	err = json.Unmarshal(buf, &parts)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(parts, ""), nil
 }
 
 func makePrompt(q Question) (string, string, error) {
