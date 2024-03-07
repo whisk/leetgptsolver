@@ -28,7 +28,8 @@ func download() {
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
-	resp, err := http.Get("https://leetcode.com/api/problems/algorithms/")
+	c := lcClient()
+	resp, err := c.Get("https://leetcode.com/api/problems/algorithms/")
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +94,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	return queryBytes, nil
 }
 
+// for some reason first couple of problems would fail to bypass cloudflare
 func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	downloadedCnt := 0
 	requestsCnt := 0
@@ -100,12 +102,9 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	var exitSignal os.Signal = nil
 
 	c := colly.NewCollector(
-		colly.UserAgent(HTTP_USER_AGENT),
 		colly.Async(true),
 	)
-	c.WithTransport(&http.Transport{
-		DisableKeepAlives: true,
-	})
+	c.WithTransport(lcTransport())
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,

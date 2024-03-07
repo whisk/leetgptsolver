@@ -16,11 +16,11 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 const PROBLEMS_DIR = "problems/"
-const HTTP_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
 
 // used only to scrap question content
 type QuestionSlug struct {
@@ -102,7 +102,20 @@ type Submission struct {
 	SubmittedAt   time.Time
 }
 
+func init() {
+	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
+	flag.BoolP("help", "h", false, "show this help")
+
+	viper.BindPFlags(flag.CommandLine)
+	flag.Parse()
+}
+
 func main() {
+	if viper.GetBool("help") || flag.NArg() == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	consoleWriter := zerolog.NewConsoleWriter()
 	consoleWriter.TimeFormat = time.DateTime
@@ -117,16 +130,18 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to read config file")
 	}
 
-	if len(os.Args) == 1 || os.Args[1] == "download" {
+	command := flag.Args()[0]
+	fileNames := flag.Args()[1:]
+	if command == "download" {
 		download()
-	} else if os.Args[1] == "prompt" {
-		prompt(os.Args[2:])
-	} else if os.Args[1] == "submit" {
-		submit(os.Args[2:])
-	} else if os.Args[1] == "report" {
-		report(os.Args[2:])
-	} else if os.Args[1] == "fix" {
-		fix(os.Args[2:])
+	} else if command == "prompt" {
+		prompt(fileNames)
+	} else if command == "submit" {
+		submit(fileNames)
+	} else if command == "report" {
+		report(fileNames)
+	} else if command == "fix" {
+		fix(fileNames)
 	}
 }
 
@@ -304,25 +319,4 @@ func humanizeTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.DateTime)
-}
-
-func expBackoff(maxWait time.Duration, f func() (bool, error)) error {
-	var waited time.Duration = 0
-	var t time.Duration = 1 * time.Second
-	for i := 0; ; i += 1 {
-		if waited > maxWait {
-			return fmt.Errorf("exp backoff timeout, waited for %s out of %s", waited.String(), maxWait.String())
-		}
-		finished, err := f()
-		if err != nil {
-			return err
-		}
-		if finished {
-			return nil
-		}
-		log.Debug().Msgf("Sleeping for %s", t.String())
-		time.Sleep(t)
-		waited = waited + t
-		t = min(t * 2, maxWait - waited + 1 * time.Millisecond)
-	}
 }

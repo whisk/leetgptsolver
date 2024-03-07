@@ -8,9 +8,15 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
+var lcThrottler Throttler
+
 func submit(files []string) {
+	sentCnt := 0
+	submittedCnt := 0
+	lcThrottler = *NewThrottler("lc", 1 * time.Second)
 	for _, file := range files {
 		var problem Problem
 		err := readProblem(&problem, file)
@@ -22,11 +28,12 @@ func submit(files []string) {
 			log.Error().Msg("No solution to submit")
 			continue
 		}
-		if problem.Submission.CheckResponse.Finished {
+		if !viper.GetBool("force") && problem.Submission.CheckResponse.Finished {
 			log.Info().Msg("Already submitted")
 			continue
 		}
 		submission, err := submitAndCheckSolution(problem.Question, problem.Solution)
+		sentCnt += 1
 		if err != nil {
 			log.Err(err).Msg("Failed to submit or check the solution")
 			continue
@@ -38,7 +45,9 @@ func submit(files []string) {
 			log.Err(err).Msg("Failed to save the submission")
 			continue
 		}
+		submittedCnt += 1
 	}
+	log.Info().Msgf("Submitted %d/%d", submittedCnt, len(files))
 }
 
 func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
@@ -78,18 +87,21 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
-	err = expBackoff(30 * time.Second, func() (bool, error) {
+	for ok := lcThrottler.Wait(); ok; ok = lcThrottler.Wait() {
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
 		if code == http.StatusTooManyRequests {
-			return false, nil
+			lcThrottler.TooManyRequests()
+			continue
 		}
 		if err != nil {
-			return false, err
+			lcThrottler.Error(err)
+			break
 		}
+		lcThrottler.Ok()
 		log.Debug().Msgf("Submission response body:\n%s", string(respBody))
-		return true, nil
-	})
+		break
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -110,27 +122,26 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*CheckResponse, error) {
 	var checkResp CheckResponse
-	err := expBackoff(maxWaitTime, func() (bool, error) {
+	for ok := lcThrottler.Wait(); ok; ok = lcThrottler.Wait() {
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		if code == http.StatusTooManyRequests {
-			return false, nil
+			lcThrottler.TooManyRequests()
+			continue
 		}
 		if err != nil {
-			return false, err
+			lcThrottler.Error(err)
+			return nil, err
 		}
+		lcThrottler.Ok()
 		log.Trace().Msgf("Check response body:\n%s", string(respBody))
 
 		err = json.Unmarshal(respBody, &checkResp)
 		if err != nil {
-			return false, fmt.Errorf("failed unmarshalling check response: %w", err)
+			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
 		}
 		if checkResp.Finished {
-			return true, nil
+			break
 		}
-		return false, nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	return &checkResp, nil
 }

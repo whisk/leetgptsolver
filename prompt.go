@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 var PREFERRED_LANGUAGES = []string{"python3", "python"}
 
 func prompt(files []string) {
+	respCnt := 0
 	for _, file := range files {
 		log.Info().Msgf("Prompting for solution for problem %s ...", file)
 
@@ -29,8 +31,13 @@ func prompt(files []string) {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
+		if time.Since(problem.Solution.SolvedAt).Hours() < 1 {
+			log.Info().Msg("Already prompted")
+			continue
+		}
 		// solution, err := promptChatGPT(problem.Question)
 		solution, err := promptGemini(problem.Question)
+		time.Sleep(time.Duration(rand.Intn(5) + 5) * time.Second)
 		if err != nil {
 			log.Err(err).Msg("Failed to get a solution")
 			continue
@@ -44,7 +51,9 @@ func prompt(files []string) {
 			log.Err(err).Msg("Failed to save the solution")
 			continue
 		}
+		respCnt += 1
 	}
+	log.Info().Msgf("Got responses for %d/%d problems", respCnt, len(files))
 }
 
 func promptChatGPT(q Question) (*Solution, error) {

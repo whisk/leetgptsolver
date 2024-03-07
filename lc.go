@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"path"
 
+	cloudflarebp "github.com/DaRealFreak/cloudflare-bp-go"
+	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -28,13 +30,14 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 		return nil, 0, err
 	}
 
-	c := http.DefaultClient
+	c := lcClient()
 	req.Header = getHeader()
 	if referer, err := makeNiceReferer(url); err != nil {
 		log.Err(err).Msg("failed to make a referer")
 	} else {
 		req.Header.Add("Referer", referer)
 	}
+	req.Header.Add("Content-Length", fmt.Sprintf("%d", req.ContentLength))
 
 	resp, err := c.Do(req)
 	if err != nil {
@@ -58,10 +61,21 @@ func getHeader() http.Header {
 	token := viper.GetString("leetcode_csrf_token")
 	session := viper.GetString("leetcode_session")
 	return http.Header{
-		"Content-Type":    {"application/json"},
-		"User-Agent":      {HTTP_USER_AGENT},
-		"Referrer-Policy": {"strict-origin-when-cross-origin"},
-		"Cookie":          {"LEETCODE_SESSION=" + session + "; csrftoken=" + token + "; "},
-		"X-Csrftoken":     {token},
+		"Content-Type": {"application/json"},
+		"Cookie":       {"LEETCODE_SESSION=" + session + "; csrftoken=" + token + "; "},
+		"User-Agent":   {browser.Chrome()},
+		"X-Csrftoken":  {token},
 	}
+}
+
+func lcClient() *http.Client {
+	client := http.DefaultClient
+	client.Transport = lcTransport()
+
+	return client
+}
+
+// &http.Transport{} bypasses cloudflare generally better than DefaultTransport
+func lcTransport() http.RoundTripper {
+	return cloudflarebp.AddCloudFlareByPass(&http.Transport{})
 }
