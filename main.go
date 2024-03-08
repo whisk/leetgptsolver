@@ -105,8 +105,13 @@ type Submission struct {
 func init() {
 	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	flag.BoolP("help", "h", false, "show this help")
+	flag.Bool("v", false, "be verbose")
+	flag.Bool("vv", false, "be very verbose (implies -v)")
 
-	viper.BindPFlags(flag.CommandLine)
+	err := viper.BindPFlags(flag.CommandLine)
+	if err != nil {
+		os.Stderr.WriteString("failed to bind flags: " + err.Error())
+	}
 	flag.Parse()
 }
 
@@ -116,7 +121,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	if viper.GetBool("v") {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else if viper.GetBool("vv") {
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
 	consoleWriter := zerolog.NewConsoleWriter()
 	consoleWriter.TimeFormat = time.DateTime
 	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()

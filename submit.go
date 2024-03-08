@@ -18,6 +18,8 @@ func submit(files []string) {
 	submittedCnt := 0
 	lcThrottler = *NewThrottler("lc", 1 * time.Second)
 	for _, file := range files {
+		log.Info().Msgf("Submitting problem %s ...", file)
+
 		var problem Problem
 		err := readProblem(&problem, file)
 		if err != nil {
