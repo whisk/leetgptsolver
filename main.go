@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -143,8 +144,15 @@ func main() {
 
 	command := flag.Args()[0]
 	fileNames := flag.Args()[1:]
+
+	fileNames, err = getActualFiles(fileNames)
+	if err != nil {
+		log.Err(err).Msg("Failed to get the files list")
+		return
+	}
+
 	if command == "download" {
-		download()
+		download(fileNames)
 	} else if command == "prompt" {
 		prompt(fileNames)
 	} else if command == "submit" {
@@ -330,4 +338,26 @@ func humanizeTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.DateTime)
+}
+
+func getActualFiles(files []string) ([]string, error) {
+	if len(files) == 0 || files[0] != "-" {
+		return files, nil
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	files = []string{}
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if len(line) > 0 {
+			files = append(files, line)
+		}
+	}
+	err := scanner.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }

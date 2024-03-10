@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,13 +20,39 @@ import (
 
 const MAX_CONSECUTIVE_ERRORS = 5
 
-func download() {
+func download(files []string) {
 	questionSlugs, err := getQuestionSlugs()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get questions slugs")
+		return
+	}
+	log.Info().Msgf("Got %d question slugs", len(questionSlugs))
+
+	if len(files) == 0 {
+		downloadQuestions(questionSlugs, PROBLEMS_DIR)
+		return
 	}
 
-	downloadQuestions(questionSlugs, PROBLEMS_DIR)
+	// filter slugs to download
+	slugsMap := map[string]QuestionSlug{}
+	for _, qs := range questionSlugs {
+		slugsMap[qs.Stat.TitleSlug] = qs
+	}
+	slugsToDownload := []QuestionSlug{}
+
+	log.Info().Msgf("Searching for %d questions...", len(files))
+	for _, file := range files {
+		// TODO: very awkward, improve
+		title := filepath.Base(file)
+		title = strings.TrimSuffix(title, filepath.Ext(file))
+
+		if qs, ok := slugsMap[title]; ok {
+			slugsToDownload = append(slugsToDownload, qs)
+		} else {
+			log.Error().Msgf("Unknown problem %s, skipping", title)
+		}
+	}
+	downloadQuestions(slugsToDownload, PROBLEMS_DIR)
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
@@ -47,7 +75,6 @@ func getQuestionSlugs() ([]QuestionSlug, error) {
 		return nil, err
 	}
 
-	log.Info().Msgf("Got %d question slugs", len(data.StatStatusPairs))
 	return data.StatStatusPairs, nil
 }
 
@@ -96,6 +123,8 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 
 // for some reason first couple of problems would fail to bypass cloudflare
 func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
+	log.Info().Msgf("Queueing %d questions...", len(slugs))
+
 	downloadedCnt := 0
 	requestsCnt := 0
 	consecutiveErrors := 0
@@ -108,7 +137,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
-		RandomDelay: 10 * time.Second,
+		RandomDelay: 15 * time.Second,
 	})
 
 	signalChan := make(chan os.Signal, 1)
@@ -152,6 +181,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			log.Err(err).Msg("Failed to download question")
 			return
 		}
+		log.Info().Msgf("Downloaded %s", dstFile)
 		downloadedCnt += 1
 	})
 	c.OnError(func(r *colly.Response, e error) {
@@ -170,7 +200,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		if qs.PaidOnly {
 			continue
 		}
-		dstFile := path.Join(dstDir, fmt.Sprintf("%d-%s.json", qs.Stat.FrontendId, qs.Stat.TitleSlug))
+		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
 		ok, _ := fileExists(dstFile)
 		if ok {
 			log.Info().Msgf("file %s already exists", dstFile)
