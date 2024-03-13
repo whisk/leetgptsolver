@@ -15,8 +15,8 @@ func fix(files []string) {
 	}
 
 	fixedCnt := 0
-	for _, file := range files {
-		log.Info().Msgf("Fixing problem %s ...", file)
+	for i, file := range files {
+		log.Info().Msgf("[%d/%d] Fixing problem %s ...", i+1, len(files), file)
 
 		var p Problem
 		err := readProblem(&p, file)

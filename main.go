@@ -34,10 +34,10 @@ type QuestionSlug struct {
 
 // used for actual content for questions, solutions and submission results
 type Problem struct {
-	Question   Question
-	Solution   Solution
-	Submission Submission
-	Path       string `json:"-"`
+	Question    Question
+	Solutions   map[string]Solution
+	Submissions map[string]Submission
+	Path        string `json:"-"`
 }
 
 type Question struct {
@@ -104,6 +104,10 @@ type Submission struct {
 }
 
 func init() {
+	// prompt
+	flag.StringP("model", "m", "", "large language model family name to use")
+
+	// general
 	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	flag.BoolP("help", "h", false, "show this help")
 	flag.Bool("v", false, "be verbose")
@@ -197,6 +201,13 @@ func readProblem(p *Problem, srcPath string) error {
 		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
 	p.Path = srcPath
+	if p.Solutions == nil {
+		p.Solutions = map[string]Solution{}
+	}
+	if p.Submissions == nil {
+		p.Submissions = map[string]Submission{}
+	}
+
 	return nil
 }
 
@@ -238,10 +249,10 @@ func problemToTsv(p Problem) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures(),
 		p.Question.SnippetFeatures(),
-		p.Solution.Model,
-		humanizeTime(p.Solution.SolvedAt),
-		p.Submission.CheckResponse.StatusMsg,
-		humanizeTime(p.Submission.SubmittedAt),
+		p.Solutions[GPT4].Model,
+		humanizeTime(p.Solutions[GPT4].SolvedAt),
+		p.Submissions[GPT4].CheckResponse.StatusMsg,
+		humanizeTime(p.Submissions[GPT4].SubmittedAt),
 	}
 	var buf bytes.Buffer
 	for _, f := range fields {

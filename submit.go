@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"whisk/leetcode-scraper/throttler"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
-var lcThrottler Throttler
+var lcThrottler throttler.Throttler
 
 func submit(files []string) {
 	sentCnt := 0
 	submittedCnt := 0
-	lcThrottler = *NewThrottler("lc", 1 * time.Second)
+	lcThrottler = throttler.NewThrottler(1 * time.Second)
 	for _, file := range files {
 		log.Info().Msgf("Submitting problem %s ...", file)
 
@@ -26,28 +27,31 @@ func submit(files []string) {
 			log.Err(err).Msg("Failed to read problem")
 			continue
 		}
-		if problem.Solution.TypedCode == "" {
-			log.Error().Msg("No solution to submit")
-			continue
+		for llm, solv := range problem.Solutions {
+			if solv.TypedCode == "" {
+				log.Error().Msg("No solution to submit")
+				continue
+			}
+			subm, ok := problem.Submissions[llm]
+			if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
+				log.Info().Msg("Already submitted")
+				continue
+			}
+			submission, err := submitAndCheckSolution(problem.Question, solv)
+			sentCnt += 1
+			if err != nil {
+				log.Err(err).Msg("Failed to submit or check the solution")
+				continue
+			}
+			log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
+			problem.Submissions[llm] = *submission
+			err = saveProblemInto(problem, file)
+			if err != nil {
+				log.Err(err).Msg("Failed to save the submission")
+				continue
+			}
+			submittedCnt += 1
 		}
-		if !viper.GetBool("force") && problem.Submission.CheckResponse.Finished {
-			log.Info().Msg("Already submitted")
-			continue
-		}
-		submission, err := submitAndCheckSolution(problem.Question, problem.Solution)
-		sentCnt += 1
-		if err != nil {
-			log.Err(err).Msg("Failed to submit or check the solution")
-			continue
-		}
-		log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
-		problem.Submission = *submission
-		err = saveProblemInto(problem, file)
-		if err != nil {
-			log.Err(err).Msg("Failed to save the submission")
-			continue
-		}
-		submittedCnt += 1
 	}
 	log.Info().Msgf("Submitted %d/%d", submittedCnt, len(files))
 }
@@ -89,23 +93,25 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
-	for ok := lcThrottler.Wait(); ok; ok = lcThrottler.Wait() {
+	for lcThrottler.Wait() {
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
 		if code == http.StatusTooManyRequests {
-			lcThrottler.TooManyRequests()
+			lcThrottler.Slower()
 			continue
 		}
 		if err != nil {
-			lcThrottler.Error(err)
+			lcThrottler.Slower()
 			break
 		}
-		lcThrottler.Ok()
 		log.Debug().Msgf("Submission response body:\n%s", string(respBody))
-		break
+		lcThrottler.Complete()
 	}
 	if err != nil {
 		return 0, err
+	}
+	if err = lcThrottler.Error(); err != nil {
+		log.Err(err).Msgf("throttler error")
 	}
 
 	var respStruct map[string]uint64
@@ -124,17 +130,16 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*CheckResponse, error) {
 	var checkResp CheckResponse
-	for ok := lcThrottler.Wait(); ok; ok = lcThrottler.Wait() {
+	for lcThrottler.Wait() {
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		if code == http.StatusTooManyRequests {
-			lcThrottler.TooManyRequests()
+			lcThrottler.Slower()
 			continue
 		}
 		if err != nil {
-			lcThrottler.Error(err)
+			lcThrottler.Slower()
 			return nil, err
 		}
-		lcThrottler.Ok()
 		log.Trace().Msgf("Check response body:\n%s", string(respBody))
 
 		err = json.Unmarshal(respBody, &checkResp)
@@ -142,8 +147,13 @@ func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*C
 			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
 		}
 		if checkResp.Finished {
-			break
+			lcThrottler.Complete()
+		} else {
+			lcThrottler.Again()
 		}
+	}
+	if err := lcThrottler.Error(); err != nil {
+		log.Err(err).Msgf("throttler error")
 	}
 	return &checkResp, nil
 }

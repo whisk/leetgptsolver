@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/rand"
 	"regexp"
 	"strings"
 	"time"
+	"whisk/leetcode-scraper/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
 	"github.com/microcosm-cc/bluemonday"
@@ -18,12 +18,39 @@ import (
 	"google.golang.org/api/option"
 )
 
-var PREFERRED_LANGUAGES = []string{"python3", "python"}
+const (
+	GPT4        = openai.GPT4Turbo0125
+	Gemini10Pro = "gemini-1.0-pro"
+)
+
+var (
+	PREFERRED_LANGUAGES = []string{"python3", "python"}
+
+	errEmptyAnswer = errors.New("empty answer")
+)
+
+var promptThrottler throttler.Throttler
 
 func prompt(files []string) {
+	promptThrottler = throttler.NewThrottler(2 * time.Second)
+
+	modelName := viper.GetString("model")
+	var prompter func(Question, string) (*Solution, error)
+	switch modelName {
+	case GPT4:
+		prompter = promptChatGPT
+	case Gemini10Pro:
+		prompter = promptGemini
+	default:
+		log.Error().Msgf("Unknown LLM %s", modelName)
+		return
+	}
+
+	log.Info().Msgf("Prompting %d solutions...", len(files))
 	respCnt := 0
-	for _, file := range files {
-		log.Info().Msgf("Prompting for solution for problem %s ...", file)
+	rand.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
+	for i, file := range files {
+		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
 
 		var problem Problem
 		err := readProblem(&problem, file)
@@ -31,32 +58,44 @@ func prompt(files []string) {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		if time.Since(problem.Solution.SolvedAt).Hours() < 1 {
+		if _, ok := problem.Solutions[modelName]; ok && !viper.GetBool("force") {
 			log.Info().Msg("Already prompted")
 			continue
 		}
-		// solution, err := promptChatGPT(problem.Question)
-		solution, err := promptGemini(problem.Question)
-		time.Sleep(time.Duration(rand.Intn(5) + 5) * time.Second)
-		if err != nil {
-			log.Err(err).Msg("Failed to get a solution")
-			continue
-		}
-		log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
-		problem.Solution = *solution
-		problem.Submission = Submission{} // new solutions clears old submissions
-		err = saveProblemInto(problem, file)
-		if err != nil {
-			log.Err(err).Msg("Failed to save the solution")
-			continue
+		for promptThrottler.Wait() {
+			var solution *Solution
+			solution, err := prompter(problem.Question, modelName)
+			if err != nil {
+				log.Err(err).Msg("Failed to get a solution")
+				if err == errEmptyAnswer {
+					promptThrottler.Complete()
+					continue
+				}
+				promptThrottler.Slower()
+				continue
+			}
+			log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
+
+			problem.Solutions[modelName] = *solution
+			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
+			err = saveProblemInto(problem, file)
+			if err != nil {
+				log.Err(err).Msg("Failed to save the solution")
+				promptThrottler.Again()
+				continue
+			}
+			respCnt += 1
+			promptThrottler.Complete()
 		}
-		respCnt += 1
+		if err := promptThrottler.Error(); err != nil {
+			log.Err(err).Msgf("throttler error")
+		}
 	}
-	log.Info().Msgf("Got responses for %d/%d problems", respCnt, len(files))
+	log.Info().Msgf("Got solutions for %d/%d problems", respCnt, len(files))
 }
 
-func promptChatGPT(q Question) (*Solution, error) {
+func promptChatGPT(q Question, modelName string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
@@ -69,7 +108,7 @@ func promptChatGPT(q Question) (*Solution, error) {
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: openai.GPT4Turbo0125,
+			Model: modelName,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleUser,
@@ -83,7 +122,7 @@ func promptChatGPT(q Question) (*Solution, error) {
 		return nil, err
 	}
 	if len(resp.Choices) == 0 {
-		return nil, errors.New("empty response")
+		return nil, errEmptyAnswer
 	}
 	answer := resp.Choices[0].Message.Content
 	log.Debug().Msgf("Got answer:\n%s", answer)
@@ -97,10 +136,9 @@ func promptChatGPT(q Question) (*Solution, error) {
 	}, nil
 }
 
-func promptGemini(q Question) (*Solution, error) {
+func promptGemini(q Question, modelName string) (*Solution, error) {
 	projectID := viper.GetString("gemini_project_id")
 	region := viper.GetString("gemini_region")
-	modelName := "gemini-1.0-pro"
 
 	ctx := context.Background()
 	opts := option.WithCredentialsFile(viper.GetString("gemini_credentials_file"))
@@ -117,6 +155,8 @@ func promptGemini(q Question) (*Solution, error) {
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
 	gemini := client.GenerativeModel(modelName)
+	temp := float32(0.0)
+	gemini.GenerationConfig.Temperature = &temp
 	chat := gemini.StartChat()
 
 	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
@@ -143,10 +183,10 @@ func promptGemini(q Question) (*Solution, error) {
 func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 	var parts []string
 	if len(r.Candidates) == 0 {
-		return "", errors.New("no candidates")
+		return "", errEmptyAnswer
 	}
-	if len(r.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("empty output due to reason %d: %s", r.Candidates[0].FinishReason, r.Candidates[0].FinishMessage)
+	if len(r.Candidates[0].Content.Parts) == 0 && r.Candidates[0].FinishReason == genai.FinishReasonRecitation {
+		return "", errEmptyAnswer
 	}
 	buf, err := json.Marshal(r.Candidates[0].Content.Parts)
 	if err != nil {
