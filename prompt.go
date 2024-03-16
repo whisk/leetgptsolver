@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math/rand"
 	"regexp"
 	"strings"
 	"time"
 	"whisk/leetcode-scraper/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
+	"github.com/liushuangls/go-anthropic"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
@@ -21,6 +21,7 @@ import (
 const (
 	GPT4        = openai.GPT4Turbo0125
 	Gemini10Pro = "gemini-1.0-pro"
+	Claude      = anthropic.ModelClaude3Opus20240229
 )
 
 var (
@@ -41,6 +42,8 @@ func prompt(files []string) {
 		prompter = promptChatGPT
 	case Gemini10Pro:
 		prompter = promptGemini
+	case Claude:
+		prompter = promptClaude
 	default:
 		log.Error().Msgf("Unknown LLM %s", modelName)
 		return
@@ -48,7 +51,6 @@ func prompt(files []string) {
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
 	respCnt := 0
-	rand.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
 	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
 
@@ -177,6 +179,47 @@ func promptGemini(q Question, modelName string) (*Solution, error) {
 		Model:     gemini.Name(),
 		SolvedAt:  time.Now(),
 	}, nil
+}
+
+func promptClaude(q Question, modelName string) (*Solution, error) {
+	client := anthropic.NewClient(viper.GetString("claude_api_key"))
+	lang, prompt, err := makePrompt(q)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug().Msgf("Generated prompt:\n%s", prompt)
+
+	temp := float32(0.0)
+	resp, err := client.CreateMessages(context.Background(), anthropic.MessagesRequest{
+		Model:       modelName,
+		Temperature: &temp,
+		Messages: []anthropic.Message{
+			anthropic.NewUserTextMessage(prompt),
+		},
+		MaxTokens: 4096,
+	})
+	if err != nil {
+		var e *anthropic.APIError
+		if errors.As(err, &e) {
+			log.Err(err).Msgf("Messages error, type: %s, message: %s", e.Type, e.Message)
+		} else {
+			log.Err(err).Msgf("Messages error: %v\n", err)
+		}
+		return nil, err
+	}
+
+	answer := resp.Content[0].Text
+
+	log.Debug().Msgf("Got answer:\n%s", answer)
+	return &Solution{
+		Lang:      lang,
+		Prompt:    prompt,
+		Answer:    answer,
+		TypedCode: extractCode(answer),
+		Model:     modelName,
+		SolvedAt:  time.Now(),
+	}, nil
+
 }
 
 // very hackish
