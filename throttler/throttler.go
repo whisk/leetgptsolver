@@ -1,13 +1,13 @@
 package throttler
 
 import (
-	"errors"
 	"time"
 )
 
 type Throttler struct {
 	n            int
 	completed    bool
+	timeout      bool
 	currentDelay time.Duration
 	minDelay     time.Duration
 	factor       float32
@@ -15,7 +15,6 @@ type Throttler struct {
 	recovery     time.Duration
 	lastCall     time.Time
 	lastSlowdown time.Time
-	err          error
 }
 
 func NewThrottler(minDelay time.Duration) Throttler {
@@ -29,14 +28,11 @@ func NewThrottler(minDelay time.Duration) Throttler {
 }
 
 func (t *Throttler) Wait() bool {
-	if t.completed {
+	if t.completed || t.timeout {
 		// don't wait when completed, abort
-		// also presumes that err == nil
+		// also don't wait when we are already timed out
 		t.completed = false
-		return false
-	}
-	if t.err != nil {
-		// don't wait on errors, abort
+		t.timeout = false
 		return false
 	}
 	if t.n == 0 {
@@ -47,16 +43,16 @@ func (t *Throttler) Wait() bool {
 	if t.currentDelay > t.maxDelay {
 		// we waited for too long, flag the error
 		// we won't wait again unless task is completed on the very next run
-		t.err = errors.New("wait too long")
+		t.timeout = true
 	}
 	return true
 }
 
+// reserved for future use
 func (t *Throttler) Error() error {
-	err := t.err
-	t.err = nil
 	t.completed = false
-	return err
+	t.timeout = false
+	return nil
 }
 
 func (t *Throttler) Complete() {
@@ -64,8 +60,7 @@ func (t *Throttler) Complete() {
 	t.n += 1
 	t.lastCall = time.Now()
 	t.completed = true
-	// completed task have no errors
-	t.err = nil
+	t.timeout = false
 }
 
 func (t *Throttler) Again() {

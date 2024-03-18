@@ -16,6 +16,7 @@ import (
 
 	"github.com/gocolly/colly"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -28,8 +29,10 @@ func download(files []string) {
 	}
 	log.Info().Msgf("Got %d question slugs", len(questionSlugs))
 
-	if len(files) == 0 {
-		downloadQuestions(questionSlugs, PROBLEMS_DIR)
+	if viper.GetBool("list") {
+		printQuestions(questionSlugs)
+	} else if len(files) == 0 {
+		downloadQuestions(questionSlugs, viper.GetString("dir"))
 		return
 	}
 
@@ -52,7 +55,7 @@ func download(files []string) {
 			log.Error().Msgf("Unknown problem %s, skipping", title)
 		}
 	}
-	downloadQuestions(slugsToDownload, PROBLEMS_DIR)
+	downloadQuestions(slugsToDownload, viper.GetString("dir"))
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
@@ -76,6 +79,12 @@ func getQuestionSlugs() ([]QuestionSlug, error) {
 	}
 
 	return data.StatStatusPairs, nil
+}
+
+func printQuestions(slugs []QuestionSlug) {
+	for _, slug := range slugs {
+		fmt.Printf("%d\t%v\t%s\n", slug.Stat.FrontendId, slug.PaidOnly, slug.Stat.TitleSlug)
+	}
 }
 
 func makeQuestionQuery(q QuestionSlug) ([]byte, error) {

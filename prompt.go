@@ -107,6 +107,7 @@ func promptChatGPT(q Question, modelName string) (*Solution, error) {
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
 	seed := int(42)
+	t0 := time.Now()
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
@@ -120,6 +121,7 @@ func promptChatGPT(q Question, modelName string) (*Solution, error) {
 			Seed: &seed,
 		},
 	)
+	latency := time.Since(t0)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +131,15 @@ func promptChatGPT(q Question, modelName string) (*Solution, error) {
 	answer := resp.Choices[0].Message.Content
 	log.Debug().Msgf("Got answer:\n%s", answer)
 	return &Solution{
-		Lang:      lang,
-		Prompt:    prompt,
-		Answer:    answer,
-		TypedCode: extractCode(answer),
-		Model:     resp.Model,
-		SolvedAt:  time.Now(),
+		Lang:         lang,
+		Prompt:       prompt,
+		Answer:       answer,
+		TypedCode:    extractCode(answer),
+		Model:        resp.Model,
+		SolvedAt:     time.Now(),
+		Latency:      latency,
+		PromptTokens: resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
 	}, nil
 }
 
@@ -161,11 +166,13 @@ func promptGemini(q Question, modelName string) (*Solution, error) {
 	gemini.GenerationConfig.Temperature = &temp
 	chat := gemini.StartChat()
 
+	t0 := time.Now()
 	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
 	if err != nil {
 		return nil, err
 	}
 	answer, err := geminiAnswer(resp)
+	latency := time.Since(t0)
 	if err != nil {
 		return nil, err
 	}
@@ -178,6 +185,9 @@ func promptGemini(q Question, modelName string) (*Solution, error) {
 		TypedCode: extractCode(answer),
 		Model:     gemini.Name(),
 		SolvedAt:  time.Now(),
+		Latency:   latency,
+		PromptTokens: int(resp.UsageMetadata.PromptTokenCount),
+		OutputTokens: int(resp.UsageMetadata.CandidatesTokenCount),
 	}, nil
 }
 
@@ -190,6 +200,7 @@ func promptClaude(q Question, modelName string) (*Solution, error) {
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
 	temp := float32(0.0)
+	t0 := time.Now()
 	resp, err := client.CreateMessages(context.Background(), anthropic.MessagesRequest{
 		Model:       modelName,
 		Temperature: &temp,
@@ -198,6 +209,7 @@ func promptClaude(q Question, modelName string) (*Solution, error) {
 		},
 		MaxTokens: 4096,
 	})
+	latency := time.Since(t0)
 	if err != nil {
 		var e *anthropic.APIError
 		if errors.As(err, &e) {
@@ -218,6 +230,9 @@ func promptClaude(q Question, modelName string) (*Solution, error) {
 		TypedCode: extractCode(answer),
 		Model:     modelName,
 		SolvedAt:  time.Now(),
+		Latency: latency,
+		PromptTokens: resp.Usage.InputTokens,
+		OutputTokens: resp.Usage.OutputTokens,
 	}, nil
 
 }

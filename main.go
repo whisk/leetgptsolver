@@ -21,8 +21,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const PROBLEMS_DIR = "problems/"
-
 // used only to scrap question content
 type QuestionSlug struct {
 	Stat struct {
@@ -73,12 +71,15 @@ type Question struct {
 }
 
 type Solution struct {
-	Lang      string
-	Prompt    string
-	Answer    string
-	TypedCode string
-	Model     string
-	SolvedAt  time.Time
+	Lang         string
+	Prompt       string
+	Answer       string
+	TypedCode    string
+	Model        string
+	Latency      time.Duration
+	SolvedAt     time.Time
+	PromptTokens int
+	OutputTokens int
 }
 
 // this we submit to leetcode
@@ -110,6 +111,8 @@ func init() {
 	// general
 	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	flag.BoolP("help", "h", false, "show this help")
+	flag.StringP("dir", "d", "problems", "")
+	flag.BoolP("list", "l", false, "print list of problems, but do not download")
 	flag.Bool("v", false, "be verbose")
 	flag.Bool("vv", false, "be very verbose (implies -v)")
 
@@ -332,14 +335,14 @@ func fileExists(name string) (bool, error) {
 }
 
 func getProblemsFiles() ([]string, error) {
-	fsys := os.DirFS(PROBLEMS_DIR)
+	fsys := os.DirFS(viper.GetString("dir"))
 	files, err := fs.Glob(fsys, "*.json")
 	if err != nil {
 		return nil, err
 	}
 
 	for i := range files {
-		files[i] = path.Join(PROBLEMS_DIR, files[i])
+		files[i] = path.Join(viper.GetString("dir"), files[i])
 	}
 	return files, nil
 }

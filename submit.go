@@ -18,8 +18,8 @@ func submit(files []string) {
 	sentCnt := 0
 	submittedCnt := 0
 	lcThrottler = throttler.NewThrottler(1 * time.Second)
-	for _, file := range files {
-		log.Info().Msgf("Submitting problem %s ...", file)
+	for i, file := range files {
+		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
 
 		var problem Problem
 		err := readProblem(&problem, file)
@@ -27,31 +27,34 @@ func submit(files []string) {
 			log.Err(err).Msg("Failed to read problem")
 			continue
 		}
-		for llm, solv := range problem.Solutions {
-			if solv.TypedCode == "" {
-				log.Error().Msg("No solution to submit")
+		for modelName, solv := range problem.Solutions {
+			if viper.GetString("model") != "" && viper.GetString("model") != modelName {
 				continue
 			}
-			subm, ok := problem.Submissions[llm]
+			if solv.TypedCode == "" {
+				log.Error().Msgf("%s has no solution to submit", modelName)
+				continue
+			}
+			subm, ok := problem.Submissions[modelName]
 			if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
-				log.Info().Msg("Already submitted")
+				log.Info().Msgf("%s's solution is already submitted", modelName)
 				continue
 			}
 			submission, err := submitAndCheckSolution(problem.Question, solv)
 			sentCnt += 1
 			if err != nil {
-				log.Err(err).Msg("Failed to submit or check the solution")
+				log.Err(err).Msgf("Failed to submit or check %s's solution", modelName)
 				continue
 			}
-			log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
-			problem.Submissions[llm] = *submission
+			log.Info().Msgf("Submission result for %s's solution: %s", modelName, submission.CheckResponse.StatusMsg)
+			problem.Submissions[modelName] = *submission
 			err = saveProblemInto(problem, file)
 			if err != nil {
-				log.Err(err).Msg("Failed to save the submission")
+				log.Err(err).Msg("Failed to save the submission result")
 				continue
 			}
-			submittedCnt += 1
 		}
+		submittedCnt += 1
 	}
 	log.Info().Msgf("Submitted %d/%d", submittedCnt, len(files))
 }
@@ -97,12 +100,18 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
 		if code == http.StatusTooManyRequests {
+			log.Err(err).Msg("")
 			lcThrottler.Slower()
 			continue
 		}
-		if err != nil {
-			lcThrottler.Slower()
+		if code == http.StatusBadRequest {
+			log.Err(err).Msg("")
 			break
+		}
+		if err != nil {
+			log.Err(err).Msg("")
+			lcThrottler.Slower()
+			continue
 		}
 		log.Debug().Msgf("Submission response body:\n%s", string(respBody))
 		lcThrottler.Complete()
@@ -133,10 +142,16 @@ func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*C
 	for lcThrottler.Wait() {
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		if code == http.StatusTooManyRequests {
+			log.Err(err).Msg("")
 			lcThrottler.Slower()
 			continue
 		}
+		if code == http.StatusBadRequest {
+			log.Err(err).Msg("")
+			break
+		}
 		if err != nil {
+			log.Err(err).Msg("")
 			lcThrottler.Slower()
 			return nil, err
 		}
