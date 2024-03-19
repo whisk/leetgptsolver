@@ -83,6 +83,7 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 		SubmitRequest: subReq,
 		SubmissionId:  submissionId,
 		CheckResponse: *checkResponse,
+		SubmittedAt:   time.Now(),
 	}, nil
 }
 

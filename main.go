@@ -110,6 +110,7 @@ func init() {
 
 	// general
 	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
+	flag.StringP("output", "o", "report.tsv", "")
 	flag.BoolP("help", "h", false, "show this help")
 	flag.StringP("dir", "d", "problems", "")
 	flag.BoolP("list", "l", false, "print list of problems, but do not download")
@@ -214,7 +215,7 @@ func readProblem(p *Problem, srcPath string) error {
 	return nil
 }
 
-func problemTsvHeader() []byte {
+func problemTsvHeader(models []string) []byte {
 	columns := []string{
 		"Id",
 		"Title",
@@ -226,10 +227,9 @@ func problemTsvHeader() []byte {
 		"Dislikes",
 		"ContentFeatures",
 		"SnippetFeatures",
-		"Model",
-		"SolvedAt",
-		"StatusMsg",
-		"SubmittedAt",
+	}
+	for _, m := range models {
+		columns = append(columns, m + " Solved At", m + " Submitted At", m + " Result")
 	}
 	var buf bytes.Buffer
 	for _, c := range columns {
@@ -240,7 +240,7 @@ func problemTsvHeader() []byte {
 	return buf.Bytes()
 }
 
-func problemToTsv(p Problem) []byte {
+func problemToTsv(p Problem, models []string) []byte {
 	fields := []string{
 		p.Question.Data.Question.FrontendId,
 		p.Question.Data.Question.Title,
@@ -252,11 +252,20 @@ func problemToTsv(p Problem) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures(),
 		p.Question.SnippetFeatures(),
-		p.Solutions[GPT4].Model,
-		humanizeTime(p.Solutions[GPT4].SolvedAt),
-		p.Submissions[GPT4].CheckResponse.StatusMsg,
-		humanizeTime(p.Submissions[GPT4].SubmittedAt),
 	}
+	for _, m := range models {
+		if solv, ok := p.Solutions[m]; ok {
+			fields = append(fields, humanizeTime(solv.SolvedAt))
+		} else {
+			fields = append(fields, "")
+		}
+		if subm, ok := p.Submissions[m]; ok {
+			fields = append(fields, humanizeTime(subm.SubmittedAt), subm.CheckResponse.StatusMsg)
+		} else {
+			fields = append(fields, "", "")
+		}
+	}
+
 	var buf bytes.Buffer
 	for _, f := range fields {
 		buf.WriteString(f)

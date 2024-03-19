@@ -5,10 +5,11 @@ import (
 	"os"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 func report(files []string) {
-	reportFilename := "report.tsv"
+	reportFilename := viper.GetString("output")
 	if len(files) == 0 {
 		var err error
 		files, err = getProblemsFiles()
@@ -28,7 +29,8 @@ func report(files []string) {
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	_, _ = w.Write(problemTsvHeader())
+	models := []string{GPT4, Gemini10Pro, Claude} // very dirty and temporary
+	_, _ = w.Write(problemTsvHeader(models))
 	reportedCnt := 0
 	for _, file := range files {
 		var p Problem
@@ -37,7 +39,7 @@ func report(files []string) {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		_, err = w.Write(problemToTsv(p))
+		_, err = w.Write(problemToTsv(p, models))
 		if err != nil {
 			log.Err(err).Msg("Failed to write to the report file")
 			continue
