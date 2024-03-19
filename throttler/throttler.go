@@ -12,17 +12,15 @@ type Throttler struct {
 	minDelay     time.Duration
 	factor       float32
 	maxDelay     time.Duration
-	recovery     time.Duration
 	lastCall     time.Time
 	lastSlowdown time.Time
 }
 
-func NewThrottler(minDelay time.Duration) Throttler {
+func NewThrottler(minDelay, maxDelay time.Duration) Throttler {
 	return Throttler{
 		currentDelay: minDelay,
 		minDelay:     minDelay,
-		maxDelay:     60.0 * time.Second,
-		recovery:     60.0 * time.Second,
+		maxDelay:     maxDelay,
 		factor:       2.0,
 	}
 }
@@ -77,7 +75,7 @@ func (t *Throttler) Slower() {
 }
 
 func (t *Throttler) tryRecover() {
-	if !t.lastSlowdown.IsZero() && time.Since(t.lastSlowdown) > t.recovery {
+	if !t.lastSlowdown.IsZero() && time.Since(t.lastSlowdown) > t.maxDelay {
 		t.currentDelay = max(t.minDelay, t.currentDelay/time.Duration(t.factor))
 	}
 }

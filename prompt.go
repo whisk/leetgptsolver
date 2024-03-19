@@ -33,7 +33,7 @@ var (
 var promptThrottler throttler.Throttler
 
 func prompt(files []string) {
-	promptThrottler = throttler.NewThrottler(2 * time.Second)
+	promptThrottler = throttler.NewThrottler(2 * time.Second, 30 * time.Second)
 
 	modelName := viper.GetString("model")
 	var prompter func(Question, string) (*Solution, error)

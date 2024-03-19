@@ -17,7 +17,8 @@ var lcThrottler throttler.Throttler
 func submit(files []string) {
 	sentCnt := 0
 	submittedCnt := 0
-	lcThrottler = throttler.NewThrottler(1 * time.Second)
+	// 2 seconds seems to be minimum acceptable delay for lc
+	lcThrottler = throttler.NewThrottler(2*time.Second, 60*time.Second)
 	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
 
