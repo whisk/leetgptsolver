@@ -22,6 +22,5 @@ go.work
 
 # project specific files
 problems/*.json
-*.tsv
 config.*.yaml
 
