@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"os"
+	leetgptsolver "whisk/leetgptsolver/pkg"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -29,7 +30,7 @@ func report(files []string) {
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	models := []string{GPT4, Gemini10Pro, Claude} // very dirty and temporary
+	models := leetgptsolver.SupportedModels
 	_, _ = w.Write(problemTsvHeader(models))
 	reportedCnt := 0
 	for _, file := range files {

@@ -1,4 +1,4 @@
-module whisk/leetcode-scraper
+module whisk/leetgptsolver
 
 go 1.21.3
 

@@ -7,7 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"whisk/leetcode-scraper/throttler"
+	leetgptsolver "whisk/leetgptsolver/pkg"
+	"whisk/leetgptsolver/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
 	"github.com/liushuangls/go-anthropic"
@@ -16,12 +17,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
 	"google.golang.org/api/option"
-)
-
-const (
-	GPT4        = openai.GPT4Turbo0125
-	Gemini10Pro = "gemini-1.0-pro"
-	Claude      = anthropic.ModelClaude3Opus20240229
 )
 
 var (
@@ -37,12 +32,12 @@ func prompt(files []string) {
 
 	modelName := viper.GetString("model")
 	var prompter func(Question, string) (*Solution, error)
-	switch modelName {
-	case GPT4:
+	switch leetgptsolver.ModelFamily(modelName) {
+	case leetgptsolver.MODEL_FAMILY_GPT:
 		prompter = promptChatGPT
-	case Gemini10Pro:
+	case leetgptsolver.MODEL_FAMILY_GEMINI:
 		prompter = promptGemini
-	case Claude:
+	case leetgptsolver.MODEL_FAMILY_CLAUDE:
 		prompter = promptClaude
 	default:
 		log.Error().Msgf("Unknown LLM %s", modelName)

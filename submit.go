@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-	"whisk/leetcode-scraper/throttler"
+	"whisk/leetgptsolver/throttler"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
