@@ -67,6 +67,9 @@ type Question struct {
 			CompanyTagStats string
 		}
 	}
+	// parts of question stats
+	AcRate string
+
 	DownloadedAt time.Time
 }
 
@@ -204,6 +207,14 @@ func readProblem(p *Problem, srcPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
+
+	var stats map[string]any
+	err = json.Unmarshal([]byte(p.Question.Data.Question.Stats), &stats)
+	if err != nil {
+		log.Err(err).Msg("failed to unmarshall question stats")
+	}
+	p.Question.AcRate, _ = stats["acRate"].(string)
+
 	p.Path = srcPath
 	if p.Solutions == nil {
 		p.Solutions = map[string]Solution{}
@@ -227,9 +238,10 @@ func problemTsvHeader(models []string) []byte {
 		"Dislikes",
 		"ContentFeatures",
 		"SnippetFeatures",
+		"acRate",
 	}
 	for _, m := range models {
-		columns = append(columns, m + " Solved At", m + " Submitted At", m + " Result")
+		columns = append(columns, m+" Solved At", m+" Submitted At", m+" Result")
 	}
 	var buf bytes.Buffer
 	for _, c := range columns {
@@ -252,6 +264,7 @@ func problemToTsv(p Problem, models []string) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures(),
 		p.Question.SnippetFeatures(),
+		p.Question.AcRate,
 	}
 	for _, m := range models {
 		if solv, ok := p.Solutions[m]; ok {
