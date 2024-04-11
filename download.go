@@ -19,6 +19,15 @@ import (
 	"github.com/spf13/viper"
 )
 
+// used only to scrap question content
+type QuestionSlug struct {
+	Stat struct {
+		FrontendId int    `json:"frontend_question_id"`
+		TitleSlug  string `json:"question__title_slug"`
+	}
+	PaidOnly bool `json:"paid_only"`
+}
+
 const MAX_CONSECUTIVE_ERRORS = 5
 
 func download(files []string) {
@@ -183,7 +192,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 
 		// we don't want interruptions while saving the data
 		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-		err = saveProblemInto(problem, dstFile)
+		err = problem.SaveProblemInto(dstFile)
 		signal.Reset()
 
 		if err != nil {

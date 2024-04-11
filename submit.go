@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-	"whisk/leetgptsolver/throttler"
+	"whisk/leetgptsolver/pkg/throttler"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -23,7 +23,7 @@ func submit(files []string) {
 		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
 
 		var problem Problem
-		err := readProblem(&problem, file)
+		err := problem.ReadProblem(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to read problem")
 			continue
@@ -49,7 +49,7 @@ func submit(files []string) {
 			}
 			log.Info().Msgf("Submission result for %s's solution: %s", modelName, submission.CheckResponse.StatusMsg)
 			problem.Submissions[modelName] = *submission
-			err = saveProblemInto(problem, file)
+			err = problem.SaveProblemInto(file)
 			if err != nil {
 				log.Err(err).Msg("Failed to save the submission result")
 				continue

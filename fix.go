@@ -19,14 +19,14 @@ func fix(files []string) {
 		log.Info().Msgf("[%d/%d] Fixing problem %s ...", i+1, len(files), file)
 
 		var p Problem
-		err := readProblem(&p, file)
+		err := p.ReadProblem(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
 		// fixing code go here
 
-		err = saveProblemInto(p, file)
+		err = p.SaveProblemInto(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to save the problem")
 			continue

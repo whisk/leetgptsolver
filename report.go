@@ -31,16 +31,16 @@ func report(files []string) {
 	defer w.Flush()
 
 	models := leetgptsolver.SupportedModels
-	_, _ = w.Write(problemTsvHeader(models))
+	_, _ = w.Write(ProblemTsvHeader(models))
 	reportedCnt := 0
 	for _, file := range files {
 		var p Problem
-		err := readProblem(&p, file)
+		err := p.ReadProblem(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		_, err = w.Write(problemToTsv(p, models))
+		_, err = w.Write(p.ProblemToTsv(models, PREFERRED_LANGUAGES))
 		if err != nil {
 			log.Err(err).Msg("Failed to write to the report file")
 			continue

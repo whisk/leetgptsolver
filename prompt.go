@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 	leetgptsolver "whisk/leetgptsolver/pkg"
-	"whisk/leetgptsolver/throttler"
+	"whisk/leetgptsolver/pkg/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
 	"github.com/liushuangls/go-anthropic"
@@ -20,8 +20,6 @@ import (
 )
 
 var (
-	PREFERRED_LANGUAGES = []string{"python3", "python"}
-
 	errEmptyAnswer = errors.New("empty answer")
 )
 
@@ -50,7 +48,7 @@ func prompt(files []string) {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
 
 		var problem Problem
-		err := readProblem(&problem, file)
+		err := problem.ReadProblem(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to read the problem")
 			continue
@@ -76,7 +74,7 @@ func prompt(files []string) {
 
 			problem.Solutions[modelName] = *solution
 			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
-			err = saveProblemInto(problem, file)
+			err = problem.SaveProblemInto(file)
 			if err != nil {
 				log.Err(err).Msg("Failed to save the solution")
 				promptThrottler.Again()
