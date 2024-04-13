@@ -28,8 +28,7 @@ func init() {
 	flag.BoolP("help", "h", false, "show this help")
 	flag.StringP("dir", "d", "problems", "")
 	flag.BoolP("list", "l", false, "print list of problems, but do not download")
-	flag.Bool("v", false, "be verbose")
-	flag.Bool("vv", false, "be very verbose (implies -v)")
+	flag.CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
 
 	err := viper.BindPFlags(flag.CommandLine)
 	if err != nil {
@@ -44,10 +43,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if viper.GetBool("v") {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else if viper.GetBool("vv") {
+	if viper.GetInt("verbose") >= 2 {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else if viper.GetInt("verbose") >= 1 {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
