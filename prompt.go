@@ -70,6 +70,11 @@ func prompt(files []string) {
 				promptThrottler.Slower()
 				continue
 			}
+			if solution == nil {
+				log.Error().Msg("Got nil solution. Probably something bad happened, skipping this problem")
+				promptThrottler.Complete()
+				continue
+			}
 			log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
 
 			problem.Solutions[modelName] = *solution
@@ -137,6 +142,12 @@ func promptChatGPT(q Question, modelName string) (*Solution, error) {
 }
 
 func promptGemini(q Question, modelName string) (*Solution, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error().Msgf("recovered: %v", err)
+		}
+	}()
+
 	projectID := viper.GetString("gemini_project_id")
 	region := viper.GetString("gemini_region")
 
@@ -158,6 +169,9 @@ func promptGemini(q Question, modelName string) (*Solution, error) {
 	temp := float32(0.0)
 	gemini.GenerationConfig.Temperature = &temp
 	chat := gemini.StartChat()
+	if chat == nil {
+		return nil, errors.New("failed to start a chat")
+	}
 
 	t0 := time.Now()
 	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
