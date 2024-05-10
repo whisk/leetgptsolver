@@ -1,7 +1,8 @@
-# "golden" set
+# "well known" set
 # https://leetcode.com/studyplan/top-interview-150/
 # https://leetcode.com/studyplan/leetcode-75/
 # https://leetcode.com/studyplan/top-100-liked/
+# created 2024-03-09
 problems/3sum.json
 problems/add-binary.json
 problems/add-two-numbers.json

@@ -1,22 +1,13 @@
 # leetgptsolver
 
-Research to identify ChatGPT capabilities on solving coding interview problems.
+Research to identify LLM's capabilities in solving coding interview problems.
 
 ## TODO
 
-+ download questions
-+ download question code stubs from leetcode
-+ chatgpt interaction
-+ save chat gpt answers
-+ clean chatgpt solution (find actual code in the response)
-+ solution submission and getting the result
-* gemini support
-- claude support
-+ throttler
-+ cmdline flags
-- simple custom downloading queue (probably without concurrency)
-- jq filtering
-- replace json files with local database for questions
+- cookie jar support
+- simple custom downloading queue
+- jq filtering for reporting
+- [?] replace json files with local database for questions
 
 ## Usage
 

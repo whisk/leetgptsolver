@@ -1,7 +1,7 @@
 # random 100 problems published before Mar 2023
 # no problem descriptions with links, images or multiple function signatures
 # 33 easy, 33 hard, 34 medium
-# created on 2024-02-04
+# created on 2024-02-14
 problems/count-number-of-pairs-with-absolute-difference-k.json
 problems/split-with-minimum-sum.json
 problems/power-of-four.json
