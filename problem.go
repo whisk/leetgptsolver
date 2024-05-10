@@ -50,7 +50,7 @@ type Question struct {
 		}
 	}
 	// parts of question stats
-	AcRate string
+	acRate string
 
 	DownloadedAt time.Time
 }
@@ -127,7 +127,7 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	if err != nil {
 		log.Err(err).Msg("failed to unmarshall question stats")
 	}
-	p.Question.AcRate, _ = stats["acRate"].(string)
+	p.Question.acRate, _ = parseAcRate(stats["acRate"])
 
 	p.Path = srcPath
 	if p.Solutions == nil {
@@ -178,7 +178,7 @@ func (p *Problem) ProblemToTsv(models, languages []string) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures(),
 		p.Question.SnippetFeatures(languages),
-		p.Question.AcRate,
+		p.Question.AcRate(),
 	}
 	for _, m := range models {
 		if solv, ok := p.Solutions[m]; ok {
@@ -251,4 +251,9 @@ func (q Question) SnippetFeatures(languages []string) string {
 	}
 
 	return ""
+}
+
+func (q Question) AcRate() string {
+	res, _ := parseAcRate(q.acRate)
+	return res
 }

@@ -74,7 +74,7 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 	}
 	url = fmt.Sprintf("https://leetcode.com/submissions/detail/%d/check/", submissionId)
 
-	checkResponse, err := checkStatus(url, submissionId, 30*time.Second)
+	checkResponse, err := checkStatus(url, submissionId)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	return submissionId, nil
 }
 
-func checkStatus(url string, submissionId uint64, maxWaitTime time.Duration) (*CheckResponse, error) {
+func checkStatus(url string, submissionId uint64) (*CheckResponse, error) {
 	var checkResp CheckResponse
 	for lcThrottler.Wait() {
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))

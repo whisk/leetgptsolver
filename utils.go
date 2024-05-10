@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -11,6 +12,14 @@ func humanizeTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.DateTime)
+}
+
+func parseAcRate(acRate any) (string, error) {
+	acRateStr, ok := acRate.(string)
+	if !ok {
+		return "", errors.New("acRate is not a string")
+	}
+	return strings.TrimSuffix(acRateStr, "%"), nil
 }
 
 func fileExists(name string) (bool, error) {
