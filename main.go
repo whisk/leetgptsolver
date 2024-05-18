@@ -4,9 +4,11 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	fs "io/fs"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -82,6 +84,8 @@ func main() {
 		report(fileNames)
 	} else if command == "fix" {
 		fix(fileNames)
+	} else {
+		log.Error().Msgf("unknown command %s", command)
 	}
 }
 
@@ -99,16 +103,19 @@ func getProblemsFiles() ([]string, error) {
 }
 
 func getActualFiles(files []string) ([]string, error) {
-	if len(files) == 0 || files[0] != "-" {
+	if len(files) == 0 {
+		return []string{}, errors.New("no files given")
+	} else if files[0] != "-" {
 		return files, nil
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	files = []string{}
+	commentPattern := regexp.MustCompile(`^\s*#`)
 	for scanner.Scan() {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
-		if len(line) > 0 {
+		if len(line) > 0 && !commentPattern.MatchString(line) {
 			files = append(files, line)
 		}
 	}
