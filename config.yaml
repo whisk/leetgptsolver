@@ -5,6 +5,3 @@ gemini_region: "europe-west1"
 gemini_credentials_file: "/path/to/gcloud/application_default_credentials.json"
 
 claude_api_key: sk-your-key-here
-
-leetcode_session: "your-session-here"
-leetcode_csrf_token: "your-token-here"

@@ -4,14 +4,13 @@ Research to identify LLM's capabilities in solving coding interview problems.
 
 ## TODO
 
-- cookie jar support
 - simple custom downloading queue
 - jq filtering for reporting
 - [?] replace json files with local database for questions
 
 ## Usage
 
-TBD
+To interact with leetcode.com, please sign-up and sign-in with your Leetcode account using Chrome browser.
 
 ## Misc
 

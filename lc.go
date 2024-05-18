@@ -4,14 +4,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"path"
+	"slices"
 
 	cloudflarebp "github.com/DaRealFreak/cloudflare-bp-go"
 	browser "github.com/EDDYCJY/fake-useragent"
+	"github.com/browserutils/kooky/browser/chrome"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
+
+var cookieJarCache *cookiejar.Jar
 
 func makeNiceReferer(urlStr string) (string, error) {
 	url, err := url.Parse(urlStr)
@@ -25,13 +30,10 @@ func makeNiceReferer(urlStr string) (string, error) {
 
 func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]byte, int, error) {
 	log.Debug().Msgf("%s %s", method, url)
-	req, err := http.NewRequest(method, url, reqBody)
-	if err != nil {
-		return nil, 0, err
-	}
+	req, err := newRequest(method, url, reqBody)
 
-	c := lcClient()
-	req.Header = getHeader()
+	c := client()
+	req.Header = newHeader()
 	if referer, err := makeNiceReferer(url); err != nil {
 		log.Err(err).Msg("failed to make a referer")
 	} else {
@@ -57,25 +59,83 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 	return respBody, resp.StatusCode, nil
 }
 
-func getHeader() http.Header {
-	token := viper.GetString("leetcode_csrf_token")
-	session := viper.GetString("leetcode_session")
+func cookieJar() http.CookieJar {
+	// nil means cookies was never loaded
+	if cookieJarCache != nil {
+		return cookieJarCache
+	}
+	loadedJar, err := loadCookieJar()
+	if err != nil {
+		// if loading of cookies failed, we don't want to make more unsuccessful attempts
+		// instead we log the error and cache an empty jar (note that empty is not nil)
+		log.Err(err).Msg("failed to get the cookie jar")
+		emptyJar, _ := cookiejar.New(nil)
+		cookieJarCache = emptyJar
+		return emptyJar
+	}
+
+	return loadedJar
+}
+
+func loadCookieJar() (http.CookieJar, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chrome cookies: %w", err)
+	}
+	cookiesFile := dir + "/Google/Chrome/Default/Cookies"
+	cookieJar, err := chrome.CookieJar(cookiesFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chrome cookies: %w", err)
+	}
+	return cookieJar, nil
+}
+
+func cookie(name string) (*http.Cookie, error) {
+	jar := cookieJar()
+	url, err := url.Parse("https://leetcode.com/")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cookie domain: %w", err)
+	}
+	cookies := jar.Cookies(url)
+	idx := slices.IndexFunc(cookies, func(c *http.Cookie) bool { return c.Name == name })
+	if idx == -1 {
+		return nil, nil
+	}
+	return cookies[idx], nil
+}
+
+func newRequest(method string, url string, reqBody io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+func newHeader() http.Header {
+	cookie, _ := cookie("csrftoken")
+	token := ""
+	if cookie != nil {
+		token = cookie.Value
+	}
+
 	return http.Header{
 		"Content-Type": {"application/json"},
-		"Cookie":       {"LEETCODE_SESSION=" + session + "; csrftoken=" + token + "; "},
 		"User-Agent":   {browser.Chrome()},
 		"X-Csrftoken":  {token},
 	}
 }
 
-func lcClient() *http.Client {
+func client() *http.Client {
 	client := http.DefaultClient
-	client.Transport = lcTransport()
+	client.Transport = newTransport()
+	client.Jar, _ = loadCookieJar()
 
 	return client
 }
 
 // &http.Transport{} bypasses cloudflare generally better than DefaultTransport
-func lcTransport() http.RoundTripper {
+func newTransport() http.RoundTripper {
 	return cloudflarebp.AddCloudFlareByPass(&http.Transport{})
 }

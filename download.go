@@ -68,7 +68,7 @@ func download(files []string) {
 }
 
 func getQuestionSlugs() ([]QuestionSlug, error) {
-	c := lcClient()
+	c := client()
 	resp, err := c.Get("https://leetcode.com/api/problems/algorithms/")
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	c := colly.NewCollector(
 		colly.Async(true),
 	)
-	c.WithTransport(lcTransport())
+	c.WithTransport(newTransport())
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
