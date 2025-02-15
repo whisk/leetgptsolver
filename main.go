@@ -4,7 +4,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	fs "io/fs"
 	"os"
 	"path"
@@ -103,9 +102,7 @@ func getProblemsFiles() ([]string, error) {
 }
 
 func getActualFiles(files []string) ([]string, error) {
-	if len(files) == 0 {
-		return []string{}, errors.New("no files given")
-	} else if files[0] != "-" {
+	if len(files) == 0 || files[0] != "-" {
 		return files, nil
 	}
 
