@@ -4,10 +4,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func fix(files []string) {
+func fix(args []string) {
+	files, err := filenamesFromArgs(args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get files")
+		return
+	}
+
 	if len(files) == 0 {
 		var err error
-		files, err = getProblemsFiles()
+		files, err = allFilesFromProblemsDir()
 		if err != nil {
 			log.Err(err).Msg("failed to read problems files")
 			return

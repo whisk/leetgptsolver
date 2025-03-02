@@ -3,58 +3,17 @@
 package main
 
 import (
-	"bufio"
-	fs "io/fs"
-	"os"
-	"path"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var PREFERRED_LANGUAGES = []string{"python3", "python"}
 
-func init() {
-	// prompt
-	flag.StringP("model", "m", "", "large language model family name to use")
-
-	// general
-	flag.BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
-	flag.StringP("output", "o", "report.tsv", "")
-	flag.BoolP("help", "h", false, "show this help")
-	flag.StringP("dir", "d", "problems", "")
-	flag.BoolP("list", "l", false, "print list of problems, but do not download")
-	flag.CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
-
-	err := viper.BindPFlags(flag.CommandLine)
-	if err != nil {
-		os.Stderr.WriteString("failed to bind flags: " + err.Error())
-	}
-	flag.Parse()
-}
-
-func main() {
-	if viper.GetBool("help") || flag.NArg() == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if viper.GetInt("verbose") >= 2 {
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	} else if viper.GetInt("verbose") >= 1 {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
-	consoleWriter := zerolog.NewConsoleWriter()
-	consoleWriter.TimeFormat = time.DateTime
-	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()
-
+func initConfig() {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config.production")
 	viper.SetConfigType("yaml")
@@ -63,63 +22,88 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to read config file")
 	}
+}
 
-	command := flag.Args()[0]
-	fileNames := flag.Args()[1:]
-
-	fileNames, err = getActualFiles(fileNames)
-	if err != nil {
-		log.Err(err).Msg("Failed to get the files list")
-		return
-	}
-
-	if command == "download" {
-		download(fileNames)
-	} else if command == "prompt" {
-		prompt(fileNames)
-	} else if command == "submit" {
-		submit(fileNames)
-	} else if command == "report" {
-		report(fileNames)
-	} else if command == "fix" {
-		fix(fileNames)
+func initVerbosity() {
+	if viper.GetInt("verbose") >= 2 {
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else if viper.GetInt("verbose") >= 1 {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
-		log.Error().Msgf("unknown command %s", command)
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 }
 
-func getProblemsFiles() ([]string, error) {
-	fsys := os.DirFS(viper.GetString("dir"))
-	files, err := fs.Glob(fsys, "*.json")
-	if err != nil {
-		return nil, err
+func main() {
+	cobra.OnInitialize(initConfig, initVerbosity)
+	consoleWriter := zerolog.NewConsoleWriter()
+	consoleWriter.TimeFormat = time.DateTime
+	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()
+
+	rootCmd := &cobra.Command{Use: "leetgptsolver", CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true}}
+	rootCmd.PersistentFlags().BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
+	rootCmd.PersistentFlags().StringP("dir", "d", "problems", "")
+	rootCmd.PersistentFlags().CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
+	viper.BindPFlags(rootCmd.PersistentFlags())
+
+	cmdDownload := &cobra.Command{
+		Use:   "download",
+		Short: "Download problems from leetcode",
+		Run: func(cmd *cobra.Command, args []string) {
+			download(args)
+		},
+	}
+	cmdDownload.Flags().BoolP("list", "l", false, "list available problems on leetcode")
+	viper.BindPFlags(cmdDownload.Flags())
+
+	cmdShow := &cobra.Command{
+		Use:   "show",
+		Short: "Show problems info",
+		Run: func(cmd *cobra.Command, args []string) {
+			show(args)
+		},
 	}
 
-	for i := range files {
-		files[i] = path.Join(viper.GetString("dir"), files[i])
+	cmdPrompt := &cobra.Command{
+		Use:   "prompt",
+		Short: "Prompt for a solution",
+		Run: func(cmd *cobra.Command, args []string) {
+			prompt(args)
+		},
 	}
-	return files, nil
-}
+	cmdPrompt.Flags().StringP("model", "m", "", "large language model family name to use")
+	viper.BindPFlags(cmdPrompt.Flags())
 
-func getActualFiles(files []string) ([]string, error) {
-	if len(files) == 0 || files[0] != "-" {
-		return files, nil
+	cmdSubmit := &cobra.Command{
+		Use:   "submit",
+		Short: "Submit a solution",
+		Run: func(cmd *cobra.Command, args []string) {
+			submit(args)
+		},
+	}
+	cmdSubmit.Flags().StringP("model", "m", "", "large language model family name to use")
+	viper.BindPFlags(cmdSubmit.Flags())
+
+	cmdReport := &cobra.Command{
+		Use:   "report",
+		Short: "Generate a report",
+		Run: func(cmd *cobra.Command, args []string) {
+			report(args)
+		},
+	}
+	cmdReport.Flags().StringP("output", "o", "report.tsv", "")
+
+	cmdFix := &cobra.Command{
+		Use:   "fix",
+		Short: "Fix problems",
+		Run: func(cmd *cobra.Command, args []string) {
+			fix(args)
+		},
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	files = []string{}
-	commentPattern := regexp.MustCompile(`^\s*#`)
-	for scanner.Scan() {
-		line := scanner.Text()
-		line = strings.TrimSpace(line)
-		if len(line) > 0 && !commentPattern.MatchString(line) {
-			files = append(files, line)
-		}
-	}
-	err := scanner.Err()
-	if err != nil {
-		return nil, err
-	}
+	rootCmd.AddCommand(cmdDownload, cmdShow, cmdPrompt, cmdSubmit, cmdReport, cmdFix)
 
-	return files, nil
+	if err := rootCmd.Execute(); err != nil {
+        panic(err)
+    }
 }

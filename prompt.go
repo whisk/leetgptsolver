@@ -25,7 +25,13 @@ var (
 
 var promptThrottler throttler.Throttler
 
-func prompt(files []string) {
+func prompt(args []string) {
+	files, err := filenamesFromArgs(args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get files")
+		return
+	}
+
 	promptThrottler = throttler.NewThrottler(2 * time.Second, 30 * time.Second)
 
 	modelName := viper.GetString("model")

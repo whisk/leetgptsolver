@@ -30,7 +30,13 @@ type QuestionSlug struct {
 
 const MAX_CONSECUTIVE_ERRORS = 5
 
-func download(files []string) {
+func download(args []string) {
+	files, err := filenamesFromArgs(args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get files")
+		return
+	}
+
 	questionSlugs, err := getQuestionSlugs()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get questions slugs")
@@ -139,13 +145,16 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 	return queryBytes, nil
 }
 
-// for some reason first couple of problems would fail to bypass cloudflare
+// for some reason first couple of problems may fail to bypass cloudflare
 func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
-	log.Info().Msgf("Queueing %d questions...", len(slugs))
+	log.Debug().Msgf("Queueing %d questions...", len(slugs))
 
 	downloadedCnt := 0
-	requestsCnt := 0
-	consecutiveErrors := 0
+	alreadyDownloadedCnt := 0
+	skippedCnt := 0
+	queuedCnt := 0
+	errorsCnt := 0
+	consecutiveErrorsCnt := 0
 	var exitSignal os.Signal = nil
 
 	c := colly.NewCollector(
@@ -161,12 +170,12 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	signalChan := make(chan os.Signal, 1)
 	go func() {
 		s := <-signalChan
-		log.Info().Msgf("Got %v, terminating...", s)
+		log.Info().Msgf("Got %v, terminating", s)
 		exitSignal = s
 	}()
 
 	c.OnResponse(func(r *colly.Response) {
-		consecutiveErrors = 0
+		consecutiveErrorsCnt = 0
 		if exitSignal != nil {
 			log.Info().Msg("Terminated by user")
 			// we don't like os.Exit, but it seems that colly doesn't have a good way to stop parallel requests
@@ -199,14 +208,15 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			log.Err(err).Msg("Failed to download question")
 			return
 		}
-		log.Info().Msgf("Downloaded %s", dstFile)
+		log.Debug().Msgf("Downloaded %s successfully", dstFile)
 		downloadedCnt += 1
 	})
 	c.OnError(func(r *colly.Response, e error) {
 		log.Error().Err(e).Msgf("Failed to fetch question %s", r.Request.Ctx.Get("dstFile"))
-		consecutiveErrors += 1
-		if consecutiveErrors >= MAX_CONSECUTIVE_ERRORS {
-			log.Error().Msgf("Too many errors (%d), aborting...", consecutiveErrors)
+		consecutiveErrorsCnt += 1
+		errorsCnt += 1
+		if consecutiveErrorsCnt >= MAX_CONSECUTIVE_ERRORS {
+			log.Error().Msgf("Too many errors (%d), aborting...", consecutiveErrorsCnt)
 			os.Exit(1)
 		}
 	})
@@ -216,12 +226,14 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	}
 	for _, qs := range slugs {
 		if qs.PaidOnly {
+			skippedCnt += 1
 			continue
 		}
 		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
 		ok, _ := fileExists(dstFile)
 		if ok {
-			log.Info().Msgf("file %s already exists", dstFile)
+			log.Debug().Msgf("file %s already exists", dstFile)
+			alreadyDownloadedCnt += 1
 			continue
 		}
 		queryBytes, err := makeQuestionQuery(qs)
@@ -237,10 +249,15 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			ctx,
 			hdr,
 		)
-		requestsCnt += 1
+		queuedCnt += 1
 	}
-	log.Debug().Msgf("%d requests queued", requestsCnt)
+	log.Debug().Msgf("%d questions already downloaded", alreadyDownloadedCnt)
+	log.Debug().Msgf("%d requests queued", queuedCnt)
 	c.Wait()
 
+	log.Info().Msgf("Downloaded successfully: %d", downloadedCnt)
+	log.Info().Msgf("Already downloaded: %d", alreadyDownloadedCnt)
+	log.Info().Msgf("Skipped: %d", skippedCnt)
+	log.Info().Msgf("Errors: %d", errorsCnt)
 	return downloadedCnt
 }

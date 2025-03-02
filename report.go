@@ -9,11 +9,17 @@ import (
 	"github.com/spf13/viper"
 )
 
-func report(files []string) {
+func report(args []string) {
+	files, err := filenamesFromArgs(args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get files")
+		return
+	}
+
 	reportFilename := viper.GetString("output")
 	if len(files) == 0 {
 		var err error
-		files, err = getProblemsFiles()
+		files, err = allFilesFromProblemsDir()
 		if err != nil {
 			log.Err(err).Msg("Failed to read problems files")
 			return

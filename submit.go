@@ -14,7 +14,13 @@ import (
 
 var lcThrottler throttler.Throttler
 
-func submit(files []string) {
+func submit(args []string) {
+	files, err := filenamesFromArgs(args)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get files")
+		return
+	}
+
 	sentCnt := 0
 	submittedCnt := 0
 	// 2 seconds seems to be minimum acceptable delay for lc
