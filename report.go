@@ -36,7 +36,7 @@ func report(args []string) {
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	models := leetgptsolver.SupportedModels
+	models := leetgptsolver.SupportedModels()
 	_, _ = w.Write(ProblemTsvHeader(models))
 	reportedCnt := 0
 	for _, file := range files {

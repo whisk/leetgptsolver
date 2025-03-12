@@ -251,13 +251,15 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		)
 		queuedCnt += 1
 	}
-	log.Debug().Msgf("%d questions already downloaded", alreadyDownloadedCnt)
-	log.Debug().Msgf("%d requests queued", queuedCnt)
+	log.Info().Msgf("%d questions already downloaded", alreadyDownloadedCnt)
+	log.Info().Msgf("%d requests queued", queuedCnt)
 	c.Wait()
 
-	log.Info().Msgf("Downloaded successfully: %d", downloadedCnt)
-	log.Info().Msgf("Already downloaded: %d", alreadyDownloadedCnt)
-	log.Info().Msgf("Skipped: %d", skippedCnt)
-	log.Info().Msgf("Errors: %d", errorsCnt)
+	if queuedCnt > 0 {
+		log.Info().Msgf("Downloaded successfully: %d", downloadedCnt)
+		log.Info().Msgf("Already downloaded: %d", alreadyDownloadedCnt)
+		log.Info().Msgf("Skipped: %d", skippedCnt)
+		log.Info().Msgf("Errors: %d", errorsCnt)
+	}
 	return downloadedCnt
 }

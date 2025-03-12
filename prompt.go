@@ -35,14 +35,19 @@ func prompt(args []string) {
 	promptThrottler = throttler.NewThrottler(2 * time.Second, 30 * time.Second)
 
 	modelName := viper.GetString("model")
+	if modelName == "" {
+		log.Error().Msg("Model is not set")
+		return
+	}
+
 	var prompter func(Question, string) (*Solution, error)
 	switch leetgptsolver.ModelFamily(modelName) {
-	case leetgptsolver.MODEL_FAMILY_GPT:
-		prompter = promptChatGPT
-	case leetgptsolver.MODEL_FAMILY_GEMINI:
-		prompter = promptGemini
-	case leetgptsolver.MODEL_FAMILY_CLAUDE:
-		prompter = promptClaude
+	case leetgptsolver.MODEL_FAMILY_OPENAI:
+		prompter = promptOpenAi
+	case leetgptsolver.MODEL_FAMILY_GOOGLE:
+		prompter = promptGoogle
+	case leetgptsolver.MODEL_FAMILY_ANTHROPIC:
+		prompter = promptAnthropic
 	default:
 		log.Error().Msgf("Unknown LLM %s", modelName)
 		return
@@ -101,7 +106,7 @@ func prompt(args []string) {
 	log.Info().Msgf("Got solutions for %d/%d problems", respCnt, len(files))
 }
 
-func promptChatGPT(q Question, modelName string) (*Solution, error) {
+func promptOpenAi(q Question, modelName string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
@@ -147,7 +152,7 @@ func promptChatGPT(q Question, modelName string) (*Solution, error) {
 	}, nil
 }
 
-func promptGemini(q Question, modelName string) (*Solution, error) {
+func promptGoogle(q Question, modelName string) (*Solution, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error().Msgf("recovered: %v", err)
@@ -204,7 +209,7 @@ func promptGemini(q Question, modelName string) (*Solution, error) {
 	}, nil
 }
 
-func promptClaude(q Question, modelName string) (*Solution, error) {
+func promptAnthropic(q Question, modelName string) (*Solution, error) {
 	client := anthropic.NewClient(viper.GetString("claude_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {

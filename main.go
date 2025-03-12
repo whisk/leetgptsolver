@@ -68,21 +68,21 @@ func main() {
 		Use:   "prompt",
 		Short: "Prompt for a solution",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("model", cmd.PersistentFlags().Lookup("model"))
 			prompt(args)
 		},
 	}
-	cmdPrompt.Flags().StringP("model", "m", "", "large language model family name to use")
-	viper.BindPFlags(cmdPrompt.Flags())
+	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
 
 	cmdSubmit := &cobra.Command{
 		Use:   "submit",
 		Short: "Submit a solution",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("model", cmd.PersistentFlags().Lookup("model"))
 			submit(args)
 		},
 	}
-	cmdSubmit.Flags().StringP("model", "m", "", "large language model family name to use")
-	viper.BindPFlags(cmdSubmit.Flags())
+	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
 
 	cmdReport := &cobra.Command{
 		Use:   "report",
