@@ -5,3 +5,17 @@ gemini_region: "europe-west1"
 gemini_credentials_file: "/path/to/gcloud/application_default_credentials.json"
 
 claude_api_key: sk-your-key-here
+
+prompt_template: |
+  Hi, this is a coding interview. I will give you a problem statement with sample test cases and a code snippet.
+  I expect you to write the most effective working code using {language} programming language.
+  Here is the problem statement:
+  {question}
+
+  Your code should solve the given problem fully and correctly.
+  Here is the code snippet, you should expand it with your code:
+  {snippet}
+
+  Please do not alter function signature(s) in the code snippet.
+  Please output only valid source code which could be run as-is without any fixes, improvements or changes.
+  Good luck!

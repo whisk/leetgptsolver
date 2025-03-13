@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -19,8 +20,10 @@ import (
 	"google.golang.org/api/option"
 )
 
+// TODO: use error types?
 var (
-	errEmptyAnswer = errors.New("empty answer")
+	errFatal = errors.New("fatal")
+	errNonRetriable = errors.New("non-retriable")
 )
 
 var promptThrottler throttler.Throttler
@@ -55,7 +58,7 @@ func prompt(args []string) {
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
 	respCnt := 0
-	for i, file := range files {
+	outer: for i, file := range files {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
 
 		var problem Problem
@@ -73,8 +76,14 @@ func prompt(args []string) {
 			var solution *Solution
 			solution, err := prompter(problem.Question, modelName)
 			if err != nil {
+				if errors.Is(err, errFatal) {
+					log.Err(err).Msg("Aborting...")
+					promptThrottler.Complete()
+					break outer
+				}
 				log.Err(err).Msg("Failed to get a solution")
-				if err == errEmptyAnswer {
+
+				if errors.Is(err, errNonRetriable) {
 					promptThrottler.Complete()
 					continue
 				}
@@ -99,6 +108,7 @@ func prompt(args []string) {
 			respCnt += 1
 			promptThrottler.Complete()
 		}
+
 		if err := promptThrottler.Error(); err != nil {
 			log.Err(err).Msgf("throttler error")
 		}
@@ -110,7 +120,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
 	}
 
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
@@ -135,7 +145,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 		return nil, err
 	}
 	if len(resp.Choices) == 0 {
-		return nil, errEmptyAnswer
+		return nil, errNonRetriable
 	}
 	answer := resp.Choices[0].Message.Content
 	log.Debug().Msgf("Got answer:\n%s", answer)
@@ -172,7 +182,7 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
 	}
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
@@ -213,7 +223,7 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 	client := anthropic.NewClient(viper.GetString("claude_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
 	}
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
@@ -259,10 +269,10 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 	var parts []string
 	if len(r.Candidates) == 0 {
-		return "", errEmptyAnswer
+		return "", errNonRetriable
 	}
 	if len(r.Candidates[0].Content.Parts) == 0 && r.Candidates[0].FinishReason == genai.FinishReasonRecitation {
-		return "", errEmptyAnswer
+		return "", errNonRetriable
 	}
 	buf, err := json.Marshal(r.Candidates[0].Content.Parts)
 	if err != nil {
@@ -276,26 +286,33 @@ func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 }
 
 func makePrompt(q Question) (string, string, error) {
-	selectedSnippet, selectedLang := q.FindSnippet(PREFERRED_LANGUAGES)
-
-	if selectedSnippet == "" {
-		return "", "", errors.New("failed to find code snippet")
+	prompt := viper.GetString("prompt_template")
+	if prompt == "" {
+		return "", "", errors.New("prompt_template is not set")
 	}
 
+	selectedSnippet, selectedLang := q.FindSnippet(PREFERRED_LANGUAGES)
+	if selectedSnippet == "" {
+		return "", "", fmt.Errorf("failed to find code snippet for %s", selectedLang)
+	}
 	question := htmlToPlaintext(q.Data.Question.Content)
-
-	prompt := "Hi, this is a coding interview. I will give you a problem statement with sample test cases and a code snippet. " +
-		"I expect you to write the most effective working code using " + selectedLang + " programming language. " +
-		"Here is the problem statement: \n" +
-		question + "\n\n" +
-		"Your code should solve the given problem fully and correctly.\n" +
-		"Here is the code snippet, you should expand it with your code: \n" +
-		selectedSnippet + "\n\n" +
-		"Please do not alter function signature(s) in the code snippet. " +
-		"Please output only valid source code which could be run as-is without any fixes, improvements or changes. " +
-		"Good luck!"
+	if replaceInplace(&prompt, "{language}", selectedLang) == 0 {
+		return "", "", errors.New("no {language} in prompt_template")
+	}
+	if replaceInplace(&prompt, "{question}", question) == 0 {
+		return "", "", errors.New("no {question} in prompt_template")
+	}
+	if replaceInplace(&prompt, "{snippet}", selectedSnippet) == 0 {
+		return "", "", errors.New("no {snippet} in prompt_template")
+	}
 
 	return selectedLang, prompt, nil
+}
+
+func replaceInplace(s *string, old, new string) int {
+	cnt := strings.Count(*s, old)
+	*s = strings.ReplaceAll(*s, old, new)
+	return cnt
 }
 
 func htmlToPlaintext(s string) string {
