@@ -7,15 +7,23 @@ gemini_credentials_file: "/path/to/gcloud/application_default_credentials.json"
 claude_api_key: sk-your-key-here
 
 prompt_template: |
-  Hi, this is a coding interview. I will give you a problem statement with sample test cases and a code snippet.
-  I expect you to write the most effective working code using {language} programming language.
-  Here is the problem statement:
-  {question}
+  Hi, this is a coding interview. You will be given:
+  * A problem statement (with sample test cases if available).
+  * A starter code snippet (with fixed function signatures).
 
-  Your code should solve the given problem fully and correctly.
-  Here is the code snippet, you should expand it with your code:
-  {snippet}
+  Please write your solution in the {language} programming language. Your code must:
+  * Solve the problem fully and correctly.
+  * Pass all provided sample test cases.
+  * Run within acceptable time and memory limits (assume large inputs if none are specified).
+  * Follow good coding practices (clear logic, readable structure, appropriate use of language features).
 
-  Please do not alter function signature(s) in the code snippet.
-  Please output only valid source code which could be run as-is without any fixes, improvements or changes.
+  Here is the problem statement: {question}
+
+  Here is the code snippet, which you should expand with your solution: {snippet}
+
+  Important Requirements:
+  * Do not change any provided function signatures, class names, or method names.
+  * Output only valid source code that can be executed as-is, without any further improvements or bugfixes.
+  * Do not include docstrings, markdown, or commentary in your final code.
+
   Good luck!
