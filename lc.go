@@ -63,9 +63,9 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read response body: %w", err)
 	}
-	log.Trace().Msgf("Got %d bytes body", len(respBody))
+	log.Trace().Msgf("got %d bytes body", len(respBody))
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("non-ok http response code: %d", resp.StatusCode)
+		return respBody, resp.StatusCode, fmt.Errorf("non-ok http response code: %d", resp.StatusCode)
 	}
 	return respBody, resp.StatusCode, nil
 }

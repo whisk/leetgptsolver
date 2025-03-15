@@ -12,9 +12,9 @@ import (
 	"github.com/spf13/viper"
 )
 
-var lcThrottler throttler.Throttler
+var leetcodeThrottler throttler.Throttler
 
-func submit(args []string) {
+func submit(args []string, targetModel string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -23,9 +23,10 @@ func submit(args []string) {
 
 	sentCnt := 0
 	submittedCnt := 0
-	// 2 seconds seems to be minimum acceptable delay for lc
-	lcThrottler = throttler.NewThrottler(2*time.Second, 60*time.Second)
-	outerLoop: for i, file := range files {
+	// 2 seconds seems to be minimum acceptable delay for leetcode
+	leetcodeThrottler = throttler.NewSimpleThrottler(2*time.Second, 60*time.Second)
+outerLoop:
+	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Submitting problem %s...", i+1, len(files), file)
 
 		var problem Problem
@@ -35,7 +36,7 @@ func submit(args []string) {
 			continue
 		}
 		for modelName, solv := range problem.Solutions {
-			if viper.GetString("model") != "" && viper.GetString("model") != modelName {
+			if targetModel != "" && targetModel != modelName {
 				continue
 			}
 			if solv.TypedCode == "" {
@@ -108,25 +109,29 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
-	for lcThrottler.Wait() {
+	maxRetries := viper.GetInt("submit_retries")
+	i := 0
+	leetcodeThrottler.Ready()
+	for leetcodeThrottler.Wait() && i < maxRetries {
+		i += 1
+
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
+		leetcodeThrottler.Touch()
+		log.Trace().Msgf("submission response body:\n%s", string(respBody))
 		if code == http.StatusBadRequest || code == 499 {
 			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
 		}
-		if code == http.StatusTooManyRequests || err != nil{
+		if code == http.StatusTooManyRequests || err != nil {
 			log.Err(err).Msg("Slowing down...")
-			lcThrottler.Slower()
+			leetcodeThrottler.Slowdown()
 			continue
 		}
-		log.Trace().Msgf("Submission response body:\n%s", string(respBody))
-		lcThrottler.Complete()
+
+		break // success
 	}
 	if err != nil {
 		return 0, err
-	}
-	if err = lcThrottler.Error(); err != nil {
-		log.Err(err).Msgf("throttler error (this is a bug)")
 	}
 
 	var respStruct map[string]uint64
@@ -145,16 +150,21 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 func checkStatus(url string) (*CheckResponse, error) {
 	var checkResp CheckResponse
-	for lcThrottler.Wait() {
+	maxRetries := viper.GetInt("check_retries")
+	i := 0
+	leetcodeThrottler.Ready()
+	for leetcodeThrottler.Wait() && i < maxRetries {
+		i += 1
 		log.Trace().Msgf("checking submission status...")
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
+		leetcodeThrottler.Touch()
 		log.Trace().Msgf("Check response body:\n%s", string(respBody))
 		if code == http.StatusBadRequest || code == 499 {
 			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
 			log.Err(err).Msg("")
-			lcThrottler.Slower()
+			leetcodeThrottler.Slowdown()
 			continue
 		}
 
@@ -162,14 +172,8 @@ func checkStatus(url string) (*CheckResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
 		}
-		if checkResp.Finished {
-			lcThrottler.Complete()
-		} else {
-			lcThrottler.Again()
-		}
-	}
-	if err := lcThrottler.Error(); err != nil {
-		log.Err(err).Msgf("throttler error (this is a bug)")
+
+		break // success
 	}
 	return &checkResp, nil
 }

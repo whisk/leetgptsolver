@@ -68,20 +68,25 @@ func main() {
 		Use:   "prompt",
 		Short: "Prompt for a solution",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
 			viper.BindPFlag("model", cmd.PersistentFlags().Lookup("model"))
 			prompt(args)
 		},
 	}
 	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
+	cmdPrompt.PersistentFlags().IntP("retries", "r", 2, "number of retries")
 
 	cmdSubmit := &cobra.Command{
 		Use:   "submit",
 		Short: "Submit a solution",
 		Run: func(cmd *cobra.Command, args []string) {
-			viper.BindPFlag("model", cmd.PersistentFlags().Lookup("model"))
-			submit(args)
+			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
+			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
+			submit(args, cmd.Flag("model").Value.String())
 		},
 	}
+	cmdSubmit.Flags().Int("submit_retries", 2, "number of retries")
+	cmdSubmit.Flags().Int("check_retries", 5, "number of retries")
 	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
 
 	cmdReport := &cobra.Command{

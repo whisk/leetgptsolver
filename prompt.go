@@ -29,7 +29,7 @@ func prompt(args []string) {
 		return
 	}
 
-	promptThrottler = throttler.NewThrottler(1*time.Second, 30*time.Second)
+	promptThrottler = throttler.NewSimpleThrottler(1*time.Second, 30*time.Second)
 
 	modelName := viper.GetString("model")
 	if modelName == "" {
@@ -71,28 +71,31 @@ outerLoop:
 		}
 
 		promptCnt += 1
-		for promptThrottler.Wait() {
+		maxReties := viper.GetInt("retries")
+		i := 0
+		promptThrottler.Ready()
+		for promptThrottler.Wait() && i < maxReties {
+			i += 1
 			var solution *Solution
 			solution, err := prompter(problem.Question, modelName)
+			promptThrottler.Touch()
 			if err != nil {
+				log.Err(err).Msg("Failed to get a solution")
+				promptThrottler.Slowdown()
 				if _, ok := err.(FatalError); ok {
-					log.Err(err).Msg("Aborting...")
-					promptThrottler.Complete()
+					log.Error().Msg("Aborting...")
 					break outerLoop
 				}
-				log.Err(err).Msg("Failed to get a solution")
 
 				if _, ok := err.(NonRetriableError); ok {
-					promptThrottler.Complete()
 					continue outerLoop
 				}
-				promptThrottler.Slower()
 				continue
 			}
 
 			if solution == nil {
 				log.Error().Msg("Got nil solution. Probably something bad happened, skipping this problem")
-				promptThrottler.Complete()
+				promptThrottler.Slowdown()
 				continue
 			}
 			log.Info().Msgf("Got %d line(s) of code", strings.Count(solution.TypedCode, "\n"))
@@ -102,15 +105,11 @@ outerLoop:
 			err = problem.SaveProblemInto(file)
 			if err != nil {
 				log.Err(err).Msg("Failed to save the solution")
-				promptThrottler.Again()
 				continue
 			}
 			solvedCnt += 1
-			promptThrottler.Complete()
-		}
 
-		if err := promptThrottler.Error(); err != nil {
-			log.Err(err).Msgf("throttler error")
+			break // success
 		}
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
