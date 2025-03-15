@@ -12,11 +12,22 @@ import (
 
 	cloudflarebp "github.com/DaRealFreak/cloudflare-bp-go"
 	browser "github.com/EDDYCJY/fake-useragent"
-	"github.com/browserutils/kooky/browser/chrome"
+	"github.com/browserutils/kooky"
+	_ "github.com/browserutils/kooky/browser/chrome"
+	_ "github.com/browserutils/kooky/browser/firefox"
 	"github.com/rs/zerolog/log"
 )
 
 var cookieJarCache *cookiejar.Jar
+var leetcodeUrl *url.URL
+
+func init() {
+	u, err := url.Parse("https://leetcode.com/")
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse leetcode url: %v. This is a bug", err))
+	}
+	leetcodeUrl = u
+}
 
 func makeNiceReferer(urlStr string) (string, error) {
 	url, err := url.Parse(urlStr)
@@ -62,6 +73,7 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 func cookieJar() http.CookieJar {
 	// nil means cookies was never loaded
 	if cookieJarCache != nil {
+		log.Trace().Msg("using cached cookie jar")
 		return cookieJarCache
 	}
 	loadedJar, err := loadCookieJar()
@@ -69,12 +81,17 @@ func cookieJar() http.CookieJar {
 		// if loading of cookies failed, we don't want to make more unsuccessful attempts
 		// instead we log the error and cache an empty jar (note that empty is not nil)
 		log.Err(err).Msg("failed to get the cookie jar")
-		emptyJar, _ := cookiejar.New(nil)
-		cookieJarCache = emptyJar
-		return emptyJar
+		cookieJarCache, _ = cookiejar.New(nil)
+		return cookieJarCache
 	}
+	loadedJarTyped, ok := loadedJar.(*cookiejar.Jar)
+	if !ok {
+		log.Err(err).Msg("loaded cookie jar is not a cookie jar (this is likely a bug)")
+		cookieJarCache, _ = cookiejar.New(nil)
+	}
+	cookieJarCache = loadedJarTyped
 
-	return loadedJar
+	return cookieJarCache
 }
 
 func loadCookieJar() (http.CookieJar, error) {
@@ -83,20 +100,36 @@ func loadCookieJar() (http.CookieJar, error) {
 		return nil, fmt.Errorf("failed to read chrome cookies: %w", err)
 	}
 	cookiesFile := dir + "/Google/Chrome/Default/Cookies"
-	cookieJar, err := chrome.CookieJar(cookiesFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read chrome cookies: %w", err)
+	if ok, _ := fileExists(cookiesFile); !ok {
+		return nil, fmt.Errorf("chrome cookies file not found or invalid: %s", cookiesFile)
 	}
-	return cookieJar, nil
+
+	for _, cookieStore := range kooky.FindAllCookieStores() {
+		if ok, _ := fileExists(cookieStore.FilePath()); !ok {
+			// skip non-existing cookie stores
+			continue
+		}
+		log.Trace().Msgf("Found cookie store for %s: %s (default: %v)", cookieStore.Browser(), cookieStore.FilePath(), cookieStore.IsDefaultProfile())
+		if cookieStore.Browser() == "firefox" && cookieStore.IsDefaultProfile() {
+			// modern chrome cookies are not supported by kooky
+			subJar, err := cookieStore.SubJar(kooky.Valid)
+			defer cookieStore.Close()
+
+			if err != nil {
+				log.Err(err).Msgf("failed to get cookie sub jar from %s", cookieStore.FilePath())
+				continue
+			}
+			log.Debug().Msgf("using cookie jar from %s", cookieStore.FilePath())
+			return subJar, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no cookie stores found")
 }
 
 func cookie(name string) (*http.Cookie, error) {
 	jar := cookieJar()
-	url, err := url.Parse("https://leetcode.com/")
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cookie domain: %w", err)
-	}
-	cookies := jar.Cookies(url)
+	cookies := jar.Cookies(leetcodeUrl)
 	idx := slices.IndexFunc(cookies, func(c *http.Cookie) bool { return c.Name == name })
 	if idx == -1 {
 		return nil, nil
@@ -122,7 +155,7 @@ func newHeader() http.Header {
 
 	return http.Header{
 		"Content-Type": {"application/json"},
-		"User-Agent":   {browser.Chrome()},
+		"User-Agent":   {browser.Firefox()},
 		"X-Csrftoken":  {token},
 	}
 }
@@ -130,7 +163,7 @@ func newHeader() http.Header {
 func client() *http.Client {
 	client := http.DefaultClient
 	client.Transport = newTransport()
-	client.Jar, _ = loadCookieJar()
+	client.Jar = cookieJar()
 
 	return client
 }
