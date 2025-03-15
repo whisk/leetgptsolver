@@ -29,7 +29,7 @@ func prompt(args []string) {
 		return
 	}
 
-	promptThrottler = throttler.NewThrottler(1 * time.Second, 30 * time.Second)
+	promptThrottler = throttler.NewThrottler(1*time.Second, 30*time.Second)
 
 	modelName := viper.GetString("model")
 	if modelName == "" {
@@ -54,7 +54,8 @@ func prompt(args []string) {
 	promptCnt := 0
 	solvedCnt := 0
 	alreadySolvedCnt := 0
-	outerLoop: for i, file := range files {
+outerLoop:
+	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s...", i+1, len(files), modelName, file)
 
 		var problem Problem
@@ -210,13 +211,13 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 
 	log.Trace().Msgf("Got answer:\n%s", answer)
 	return &Solution{
-		Lang:      lang,
-		Prompt:    prompt,
-		Answer:    answer,
-		TypedCode: extractCode(answer),
-		Model:     gemini.Name(),
-		SolvedAt:  time.Now(),
-		Latency:   latency,
+		Lang:         lang,
+		Prompt:       prompt,
+		Answer:       answer,
+		TypedCode:    extractCode(answer),
+		Model:        gemini.Name(),
+		SolvedAt:     time.Now(),
+		Latency:      latency,
 		PromptTokens: int(resp.UsageMetadata.PromptTokenCount),
 		OutputTokens: int(resp.UsageMetadata.CandidatesTokenCount),
 	}, nil
@@ -256,13 +257,13 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 
 	log.Trace().Msgf("Got answer:\n%s", answer)
 	return &Solution{
-		Lang:      lang,
-		Prompt:    prompt,
-		Answer:    answer,
-		TypedCode: extractCode(answer),
-		Model:     modelName,
-		SolvedAt:  time.Now(),
-		Latency: latency,
+		Lang:         lang,
+		Prompt:       prompt,
+		Answer:       answer,
+		TypedCode:    extractCode(answer),
+		Model:        modelName,
+		SolvedAt:     time.Now(),
+		Latency:      latency,
 		PromptTokens: resp.Usage.InputTokens,
 		OutputTokens: resp.Usage.OutputTokens,
 	}, nil
