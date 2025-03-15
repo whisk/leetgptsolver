@@ -20,12 +20,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-// TODO: use error types?
-var (
-	errFatal = errors.New("fatal")
-	errNonRetriable = errors.New("non-retriable")
-)
-
 var promptThrottler throttler.Throttler
 
 func prompt(args []string) {
@@ -58,8 +52,8 @@ func prompt(args []string) {
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
 	respCnt := 0
-	outer: for i, file := range files {
-		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
+	outerLoop: for i, file := range files {
+		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s...", i+1, len(files), modelName, file)
 
 		var problem Problem
 		err := problem.ReadProblem(file)
@@ -76,14 +70,14 @@ func prompt(args []string) {
 			var solution *Solution
 			solution, err := prompter(problem.Question, modelName)
 			if err != nil {
-				if errors.Is(err, errFatal) {
+				if _, ok := err.(FatalError); ok {
 					log.Err(err).Msg("Aborting...")
 					promptThrottler.Complete()
-					break outer
+					break outerLoop
 				}
 				log.Err(err).Msg("Failed to get a solution")
 
-				if errors.Is(err, errNonRetriable) {
+				if _, ok := err.(NonRetriableError); ok {
 					promptThrottler.Complete()
 					continue
 				}
@@ -120,7 +114,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
+		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
 
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
@@ -145,7 +139,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 		return nil, err
 	}
 	if len(resp.Choices) == 0 {
-		return nil, errNonRetriable
+		return nil, NewNonRetriableError(errors.New("no choices in response"))
 	}
 	answer := resp.Choices[0].Message.Content
 	log.Debug().Msgf("Got answer:\n%s", answer)
@@ -182,7 +176,7 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
+		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err)
 	}
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
@@ -223,7 +217,7 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 	client := anthropic.NewClient(viper.GetString("claude_api_key"))
 	lang, prompt, err := makePrompt(q)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err, errFatal)
+		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
 	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
@@ -269,10 +263,10 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 	var parts []string
 	if len(r.Candidates) == 0 {
-		return "", errNonRetriable
+		return "", NewNonRetriableError(errors.New("no candidates in response"))
 	}
 	if len(r.Candidates[0].Content.Parts) == 0 && r.Candidates[0].FinishReason == genai.FinishReasonRecitation {
-		return "", errNonRetriable
+		return "", NewNonRetriableError(errors.New("got FinishReasonRecitation in response"))
 	}
 	buf, err := json.Marshal(r.Candidates[0].Content.Parts)
 	if err != nil {

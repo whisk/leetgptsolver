@@ -40,7 +40,7 @@ func makeNiceReferer(urlStr string) (string, error) {
 }
 
 func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]byte, int, error) {
-	log.Debug().Msgf("%s %s", method, url)
+	log.Trace().Msgf("%s %s", method, url)
 	req, err := newRequest(method, url, reqBody)
 
 	c := client()
@@ -56,16 +56,16 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to do the request: %w", err)
 	}
-	log.Debug().Msg(resp.Status)
+	log.Trace().Msgf("http response %s", resp.Status)
 
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read response body: %w", err)
 	}
-	log.Debug().Msgf("Got %d bytes body", len(respBody))
+	log.Trace().Msgf("Got %d bytes body", len(respBody))
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("got HTTP response %d", resp.StatusCode)
+		return nil, resp.StatusCode, fmt.Errorf("non-ok http response code: %d", resp.StatusCode)
 	}
 	return respBody, resp.StatusCode, nil
 }
@@ -86,7 +86,7 @@ func cookieJar() http.CookieJar {
 	}
 	loadedJarTyped, ok := loadedJar.(*cookiejar.Jar)
 	if !ok {
-		log.Err(err).Msg("loaded cookie jar is not a cookie jar (this is likely a bug)")
+		log.Err(err).Msg("loaded cookie jar is not a cookie jar (this is a bug)")
 		cookieJarCache, _ = cookiejar.New(nil)
 	}
 	cookieJarCache = loadedJarTyped
@@ -171,4 +171,12 @@ func client() *http.Client {
 // &http.Transport{} bypasses cloudflare generally better than DefaultTransport
 func newTransport() http.RoundTripper {
 	return cloudflarebp.AddCloudFlareByPass(&http.Transport{})
+}
+
+func SubmitUrl(q Question) string {
+	return leetcodeUrl.Scheme + "://" + leetcodeUrl.Host + "/problems/" + q.Data.Question.TitleSlug + "/submit/"
+}
+
+func SubmissionCheckUrl(submissionId uint64) string {
+	return leetcodeUrl.Scheme + "://" + leetcodeUrl.Host + "/submissions/detail/" + fmt.Sprint(submissionId) + "/check/"
 }

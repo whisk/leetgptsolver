@@ -25,8 +25,8 @@ func submit(args []string) {
 	submittedCnt := 0
 	// 2 seconds seems to be minimum acceptable delay for lc
 	lcThrottler = throttler.NewThrottler(2*time.Second, 60*time.Second)
-	for i, file := range files {
-		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
+	outerLoop: for i, file := range files {
+		log.Info().Msgf("[%d/%d] Submitting problem %s...", i+1, len(files), file)
 
 		var problem Problem
 		err := problem.ReadProblem(file)
@@ -47,13 +47,19 @@ func submit(args []string) {
 				log.Info().Msgf("%s's solution is already submitted", modelName)
 				continue
 			}
+
+			log.Info().Msgf("Submitting %s's solution...", modelName)
 			submission, err := submitAndCheckSolution(problem.Question, solv)
 			sentCnt += 1
 			if err != nil {
+				if _, ok := err.(FatalError); ok {
+					log.Err(err).Msgf("Aborting...")
+					break outerLoop
+				}
 				log.Err(err).Msgf("Failed to submit or check %s's solution", modelName)
 				continue
 			}
-			log.Info().Msgf("Submission result for %s's solution: %s", modelName, submission.CheckResponse.StatusMsg)
+			log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
 			problem.Submissions[modelName] = *submission
 			err = problem.SaveProblemInto(file)
 			if err != nil {
@@ -73,14 +79,12 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 		TypedCode:  codeToSubmit(s),
 	}
 
-	url := "https://leetcode.com/problems/" + q.Data.Question.TitleSlug + "/submit/"
-	submissionId, err := submitCode(url, subReq)
+	submissionId, err := submitCode(SubmitUrl(q), subReq)
 	if err != nil {
 		return nil, err
 	}
-	url = fmt.Sprintf("https://leetcode.com/submissions/detail/%d/check/", submissionId)
 
-	checkResponse, err := checkStatus(url, submissionId)
+	checkResponse, err := checkStatus(SubmissionCheckUrl(submissionId))
 	if err != nil {
 		return nil, err
 	}
@@ -100,35 +104,29 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(subReq)
 	if err != nil {
-		return 0, fmt.Errorf("failed marshalling GraphQL: %w", err)
+		return 0, NewNonRetriableError(fmt.Errorf("failed marshalling GraphQL: %w", err))
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
 	for lcThrottler.Wait() {
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
-		if code == http.StatusTooManyRequests {
-			log.Err(err).Msg("")
+		if code == http.StatusBadRequest || code == 499 {
+			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
+		}
+		if code == http.StatusTooManyRequests || err != nil{
+			log.Err(err).Msg("Slowing down...")
 			lcThrottler.Slower()
 			continue
 		}
-		if code == http.StatusBadRequest {
-			log.Err(err).Msg("")
-			break
-		}
-		if err != nil {
-			log.Err(err).Msg("")
-			lcThrottler.Slower()
-			continue
-		}
-		log.Debug().Msgf("Submission response body:\n%s", string(respBody))
+		log.Trace().Msgf("Submission response body:\n%s", string(respBody))
 		lcThrottler.Complete()
 	}
 	if err != nil {
 		return 0, err
 	}
 	if err = lcThrottler.Error(); err != nil {
-		log.Err(err).Msgf("throttler error")
+		log.Err(err).Msgf("throttler error (this is a bug)")
 	}
 
 	var respStruct map[string]uint64
@@ -138,32 +136,27 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	}
 	submissionId := respStruct["submission_id"]
 	if submissionId <= 0 {
-		return 0, fmt.Errorf("invalid submission id")
+		return 0, fmt.Errorf("invalid submission id: %d", submissionId)
 	}
-	log.Debug().Msgf("Got submission_id %d", submissionId)
+	log.Debug().Msgf("received submission_id: %d", submissionId)
 
 	return submissionId, nil
 }
 
-func checkStatus(url string, submissionId uint64) (*CheckResponse, error) {
+func checkStatus(url string) (*CheckResponse, error) {
 	var checkResp CheckResponse
 	for lcThrottler.Wait() {
+		log.Trace().Msgf("checking submission status...")
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
-		if code == http.StatusTooManyRequests {
+		log.Trace().Msgf("Check response body:\n%s", string(respBody))
+		if code == http.StatusBadRequest || code == 499 {
+			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
+		}
+		if code == http.StatusTooManyRequests || err != nil {
 			log.Err(err).Msg("")
 			lcThrottler.Slower()
 			continue
 		}
-		if code == http.StatusBadRequest {
-			log.Err(err).Msg("")
-			break
-		}
-		if err != nil {
-			log.Err(err).Msg("")
-			lcThrottler.Slower()
-			return nil, err
-		}
-		log.Trace().Msgf("Check response body:\n%s", string(respBody))
 
 		err = json.Unmarshal(respBody, &checkResp)
 		if err != nil {
@@ -176,7 +169,7 @@ func checkStatus(url string, submissionId uint64) (*CheckResponse, error) {
 		}
 	}
 	if err := lcThrottler.Error(); err != nil {
-		log.Err(err).Msgf("throttler error")
+		log.Err(err).Msgf("throttler error (this is a bug)")
 	}
 	return &checkResp, nil
 }

@@ -13,6 +13,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+type NonRetriableError struct {
+	error
+}
+
+type FatalError struct {
+	error
+}
+
+func NewNonRetriableError(err error) error {
+	return NonRetriableError{err}
+}
+
+func NewFatalError(err error) error {
+	return FatalError{err}
+}
+
 func humanizeTime(t time.Time) string {
 	if t.IsZero() {
 		return ""
