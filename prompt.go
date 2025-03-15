@@ -51,9 +51,9 @@ func prompt(args []string) {
 	}
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
-	promptCnt := 0
 	solvedCnt := 0
-	alreadySolvedCnt := 0
+	skippedCnt := 0
+	errorsCnt := 0
 outerLoop:
 	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s...", i+1, len(files), modelName, file)
@@ -61,18 +61,19 @@ outerLoop:
 		var problem Problem
 		err := problem.ReadProblem(file)
 		if err != nil {
+			errorsCnt += 1
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
 		if _, ok := problem.Solutions[modelName]; ok && !viper.GetBool("force") {
-			alreadySolvedCnt += 1
+			skippedCnt += 1
 			log.Info().Msg("Already solved")
 			continue
 		}
 
-		promptCnt += 1
 		maxReties := viper.GetInt("retries")
 		i := 0
+		solved := 0
 		promptThrottler.Ready()
 		for promptThrottler.Wait() && i < maxReties {
 			i += 1
@@ -84,38 +85,42 @@ outerLoop:
 				promptThrottler.Slowdown()
 				if _, ok := err.(FatalError); ok {
 					log.Error().Msg("Aborting...")
+					errorsCnt += 1
 					break outerLoop
 				}
 
 				if _, ok := err.(NonRetriableError); ok {
+					errorsCnt += 1
 					continue outerLoop
 				}
 				continue
 			}
-
 			if solution == nil {
+				errorsCnt += 1
 				log.Error().Msg("Got nil solution. Probably something bad happened, skipping this problem")
 				promptThrottler.Slowdown()
 				continue
 			}
-			log.Info().Msgf("Got %d line(s) of code", strings.Count(solution.TypedCode, "\n"))
 
+			log.Info().Msgf("Got %d line(s) of code", strings.Count(solution.TypedCode, "\n"))
 			problem.Solutions[modelName] = *solution
 			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
 			err = problem.SaveProblemInto(file)
 			if err != nil {
+				errorsCnt += 1
 				log.Err(err).Msg("Failed to save the solution")
 				continue
 			}
-			solvedCnt += 1
 
+			solved = 1
 			break // success
 		}
+		solvedCnt += solved
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
-	log.Info().Msgf("Problems prompted: %d", promptCnt)
+	log.Info().Msgf("Skipped problems: %d", skippedCnt)
 	log.Info().Msgf("Problems solved successfully: %d", solvedCnt)
-	log.Info().Msgf("Already solved: %d", alreadySolvedCnt)
+	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
 func promptOpenAi(q Question, modelName string) (*Solution, error) {

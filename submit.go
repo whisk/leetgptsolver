@@ -21,38 +21,46 @@ func submit(args []string, targetModel string) {
 		return
 	}
 
+	log.Info().Msgf("Submitting %d solutions...", len(files))
 	sentCnt := 0
 	submittedCnt := 0
+	skippedCnt := 0
+	errorsCnt := 0
 	// 2 seconds seems to be minimum acceptable delay for leetcode
 	leetcodeThrottler = throttler.NewSimpleThrottler(2*time.Second, 60*time.Second)
 outerLoop:
 	for i, file := range files {
-		log.Info().Msgf("[%d/%d] Submitting problem %s...", i+1, len(files), file)
+		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
 
 		var problem Problem
 		err := problem.ReadProblem(file)
 		if err != nil {
 			log.Err(err).Msg("Failed to read problem")
+			errorsCnt += 1
 			continue
 		}
+
+		submitted := 0
 		for modelName, solv := range problem.Solutions {
 			if targetModel != "" && targetModel != modelName {
 				continue
 			}
 			if solv.TypedCode == "" {
 				log.Error().Msgf("%s has no solution to submit", modelName)
+				skippedCnt += 1
 				continue
 			}
 			subm, ok := problem.Submissions[modelName]
 			if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
 				log.Info().Msgf("%s's solution is already submitted", modelName)
+				skippedCnt += 1
 				continue
 			}
-
 			log.Info().Msgf("Submitting %s's solution...", modelName)
 			submission, err := submitAndCheckSolution(problem.Question, solv)
 			sentCnt += 1
 			if err != nil {
+				errorsCnt += 1
 				if _, ok := err.(FatalError); ok {
 					log.Err(err).Msgf("Aborting...")
 					break outerLoop
@@ -60,17 +68,23 @@ outerLoop:
 				log.Err(err).Msgf("Failed to submit or check %s's solution", modelName)
 				continue
 			}
+
 			log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
 			problem.Submissions[modelName] = *submission
 			err = problem.SaveProblemInto(file)
 			if err != nil {
 				log.Err(err).Msg("Failed to save the submission result")
+				errorsCnt += 1
 				continue
 			}
+			submitted = 1
 		}
-		submittedCnt += 1
+		submittedCnt += submitted
 	}
-	log.Info().Msgf("Submitted %d/%d", submittedCnt, len(files))
+	log.Info().Msgf("Files processed: %d", len(files))
+	log.Info().Msgf("Skipped problems: %d", skippedCnt)
+	log.Info().Msgf("Problems submitted successfully: %d", submittedCnt)
+	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
 func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
