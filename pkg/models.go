@@ -17,13 +17,14 @@ const (
 
 var OpenAiModels = []string{
 	openai.GPT4Turbo0125,
-	openai.O1Mini,
-	openai.O3Mini,
+	openai.O120241217,
+	openai.O3Mini20250131,
 }
 
 var GoogleModels = []string{
 	"gemini-1.0-pro",
 	"gemini-1.5-pro-preview-0409",
+	"gemini-2.0-flash-001",
 }
 
 var AnthropicModels = []string{

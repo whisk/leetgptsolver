@@ -29,7 +29,7 @@ func prompt(args []string) {
 		return
 	}
 
-	promptThrottler = throttler.NewThrottler(2 * time.Second, 30 * time.Second)
+	promptThrottler = throttler.NewThrottler(1 * time.Second, 30 * time.Second)
 
 	modelName := viper.GetString("model")
 	if modelName == "" {
@@ -51,7 +51,9 @@ func prompt(args []string) {
 	}
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
-	respCnt := 0
+	promptCnt := 0
+	solvedCnt := 0
+	alreadySolvedCnt := 0
 	outerLoop: for i, file := range files {
 		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s...", i+1, len(files), modelName, file)
 
@@ -62,10 +64,12 @@ func prompt(args []string) {
 			continue
 		}
 		if _, ok := problem.Solutions[modelName]; ok && !viper.GetBool("force") {
-			log.Info().Msg("Already prompted")
+			alreadySolvedCnt += 1
+			log.Info().Msg("Already solved")
 			continue
 		}
 
+		promptCnt += 1
 		for promptThrottler.Wait() {
 			var solution *Solution
 			solution, err := prompter(problem.Question, modelName)
@@ -79,17 +83,18 @@ func prompt(args []string) {
 
 				if _, ok := err.(NonRetriableError); ok {
 					promptThrottler.Complete()
-					continue
+					continue outerLoop
 				}
 				promptThrottler.Slower()
 				continue
 			}
+
 			if solution == nil {
 				log.Error().Msg("Got nil solution. Probably something bad happened, skipping this problem")
 				promptThrottler.Complete()
 				continue
 			}
-			log.Info().Msgf("Got %d line(s) of solution", strings.Count(solution.TypedCode, "\n"))
+			log.Info().Msgf("Got %d line(s) of code", strings.Count(solution.TypedCode, "\n"))
 
 			problem.Solutions[modelName] = *solution
 			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
@@ -99,7 +104,7 @@ func prompt(args []string) {
 				promptThrottler.Again()
 				continue
 			}
-			respCnt += 1
+			solvedCnt += 1
 			promptThrottler.Complete()
 		}
 
@@ -107,17 +112,20 @@ func prompt(args []string) {
 			log.Err(err).Msgf("throttler error")
 		}
 	}
-	log.Info().Msgf("Got solutions for %d/%d problems", respCnt, len(files))
+	log.Info().Msgf("Files processed: %d", len(files))
+	log.Info().Msgf("Problems prompted: %d", promptCnt)
+	log.Info().Msgf("Problems solved successfully: %d", solvedCnt)
+	log.Info().Msgf("Already solved: %d", alreadySolvedCnt)
 }
 
 func promptOpenAi(q Question, modelName string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
-	lang, prompt, err := makePrompt(q)
+	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
-
-	log.Debug().Msgf("Generated prompt:\n%s", prompt)
+	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
+	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
 	seed := int(42)
 	t0 := time.Now()
@@ -142,7 +150,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 		return nil, NewNonRetriableError(errors.New("no choices in response"))
 	}
 	answer := resp.Choices[0].Message.Content
-	log.Debug().Msgf("Got answer:\n%s", answer)
+	log.Trace().Msgf("Got answer:\n%s", answer)
 	return &Solution{
 		Lang:         lang,
 		Prompt:       prompt,
@@ -163,6 +171,13 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 		}
 	}()
 
+	lang, prompt, err := generatePrompt(q)
+	if err != nil {
+		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
+	}
+	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
+	log.Trace().Msgf("Generated prompt:\n%s", prompt)
+
 	projectID := viper.GetString("gemini_project_id")
 	region := viper.GetString("gemini_region")
 
@@ -170,15 +185,9 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 	opts := option.WithCredentialsFile(viper.GetString("gemini_credentials_file"))
 	client, err := genai.NewClient(ctx, projectID, region, opts)
 	if err != nil {
-		return nil, err
+		return nil, NewFatalError(fmt.Errorf("failed to create a client: %w", err))
 	}
 	defer client.Close()
-
-	lang, prompt, err := makePrompt(q)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make prompt: %w (%w)", err)
-	}
-	log.Debug().Msgf("Generated prompt:\n%s", prompt)
 
 	gemini := client.GenerativeModel(modelName)
 	temp := float32(0.0)
@@ -191,7 +200,7 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 	t0 := time.Now()
 	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send a message: %w", err)
 	}
 	answer, err := geminiAnswer(resp)
 	latency := time.Since(t0)
@@ -199,7 +208,7 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 		return nil, err
 	}
 
-	log.Debug().Msgf("Got answer:\n%s", answer)
+	log.Trace().Msgf("Got answer:\n%s", answer)
 	return &Solution{
 		Lang:      lang,
 		Prompt:    prompt,
@@ -215,11 +224,12 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 
 func promptAnthropic(q Question, modelName string) (*Solution, error) {
 	client := anthropic.NewClient(viper.GetString("claude_api_key"))
-	lang, prompt, err := makePrompt(q)
+	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
-	log.Debug().Msgf("Generated prompt:\n%s", prompt)
+	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
+	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
 	temp := float32(0.0)
 	t0 := time.Now()
@@ -244,7 +254,7 @@ func promptAnthropic(q Question, modelName string) (*Solution, error) {
 
 	answer := resp.Content[0].Text
 
-	log.Debug().Msgf("Got answer:\n%s", answer)
+	log.Trace().Msgf("Got answer:\n%s", answer)
 	return &Solution{
 		Lang:      lang,
 		Prompt:    prompt,
@@ -279,7 +289,7 @@ func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 	return strings.Join(parts, ""), nil
 }
 
-func makePrompt(q Question) (string, string, error) {
+func generatePrompt(q Question) (string, string, error) {
 	prompt := viper.GetString("prompt_template")
 	if prompt == "" {
 		return "", "", errors.New("prompt_template is not set")
