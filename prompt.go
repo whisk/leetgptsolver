@@ -74,14 +74,13 @@ outerLoop:
 			continue
 		}
 
+		var solution *Solution
 		maxReties := viper.GetInt("retries")
 		i := 0
-		solved := 0
 		promptThrottler.Ready()
 		for promptThrottler.Wait() && i < maxReties {
 			i += 1
-			var solution *Solution
-			solution, err := prompter(problem.Question, modelName)
+			solution, err = prompter(problem.Question, modelName)
 			promptThrottler.Touch()
 			if err != nil {
 				log.Err(err).Msg("Failed to get a solution")
@@ -98,27 +97,27 @@ outerLoop:
 				}
 				continue
 			}
-			if solution == nil {
-				errorsCnt += 1
-				log.Error().Msg("Got nil solution. Probably something bad happened, skipping this problem")
-				promptThrottler.Slowdown()
-				continue
-			}
 
-			log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
-			problem.Solutions[modelName] = *solution
-			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
-			err = problem.SaveProblemInto(file)
-			if err != nil {
-				errorsCnt += 1
-				log.Err(err).Msg("Failed to save the solution")
-				continue
-			}
-
-			solved = 1
 			break // success
 		}
-		solvedCnt += solved
+
+		if solution == nil {
+			// did not get a solution after retries
+			errorsCnt += 1
+			continue
+		}
+
+		log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
+		problem.Solutions[modelName] = *solution
+		problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
+		err = problem.SaveProblemInto(file)
+		if err != nil {
+			errorsCnt += 1
+			log.Err(err).Msg("Failed to save the solution")
+			continue
+		}
+
+		solvedCnt += 1
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
 	log.Info().Msgf("Skipped problems: %d", skippedCnt)

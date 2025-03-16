@@ -41,6 +41,7 @@ outerLoop:
 		}
 
 		submitted := 0
+		// TODO: submit for a single model per run to not overcomplicate the logic
 		for modelName, solv := range problem.Solutions {
 			if targetModel != "" && targetModel != modelName {
 				continue
@@ -69,7 +70,7 @@ outerLoop:
 				continue
 			}
 
-			log.Info().Msgf("Submission result: %s", submission.CheckResponse.StatusMsg)
+			log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
 			problem.Submissions[modelName] = *submission
 			err = problem.SaveProblemInto(file)
 			if err != nil {
@@ -163,13 +164,13 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 }
 
 func checkStatus(url string) (*CheckResponse, error) {
-	var checkResp CheckResponse
+	var checkResp *CheckResponse
 	maxRetries := viper.GetInt("check_retries")
 	i := 0
 	leetcodeThrottler.Ready()
 	for leetcodeThrottler.Wait() && i < maxRetries {
 		i += 1
-		log.Trace().Msgf("checking submission status...")
+		log.Trace().Msgf("checking submission status (%d/%d)...", i, maxRetries)
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		leetcodeThrottler.Touch()
 		log.Trace().Msgf("Check response body:\n%s", string(respBody))
@@ -187,9 +188,19 @@ func checkStatus(url string) (*CheckResponse, error) {
 			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
 		}
 
-		break // success
+		if checkResp.Finished {
+			break // success
+		}
 	}
-	return &checkResp, nil
+	if checkResp == nil {
+		// did not get a response after retries
+		return nil, fmt.Errorf("failed to get check submission status")
+	}
+	if !checkResp.Finished {
+		return nil, fmt.Errorf("submission is not finished")
+	}
+
+	return checkResp, nil
 }
 
 func codeToSubmit(s Solution) string {
