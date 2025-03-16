@@ -3,6 +3,7 @@ package leetgptsolver // import "github.com/whisk/leetgptsolver/pkg"
 import (
 	"slices"
 
+	deepseek "github.com/cohesion-org/deepseek-go"
 	"github.com/liushuangls/go-anthropic"
 	"github.com/sashabaranov/go-openai"
 )
@@ -13,6 +14,7 @@ const (
 	MODEL_FAMILY_OPENAI
 	MODEL_FAMILY_GOOGLE
 	MODEL_FAMILY_ANTHROPIC
+	MODEL_FAMILY_DEEPSEEK
 )
 
 var OpenAiModels = []string{
@@ -32,6 +34,23 @@ var AnthropicModels = []string{
 	"claude-3-7-sonnet-20250219",
 }
 
+var DeepseekModels = []string{
+	deepseek.DeepSeekChat,
+}
+
+var supportedModels []string
+
+func init() {
+	supportedModels = append(supportedModels, OpenAiModels...)
+	supportedModels = append(supportedModels, GoogleModels...)
+	supportedModels = append(supportedModels, AnthropicModels...)
+	supportedModels = append(supportedModels, DeepseekModels...)
+}
+
+func SupportedModels() []string {
+	return supportedModels
+}
+
 func ModelFamily(modelName string) int {
 	switch {
 	case slices.Index(OpenAiModels, modelName) != -1:
@@ -40,11 +59,9 @@ func ModelFamily(modelName string) int {
 		return MODEL_FAMILY_GOOGLE
 	case slices.Index(AnthropicModels, modelName) != -1:
 		return MODEL_FAMILY_ANTHROPIC
+	case slices.Index(DeepseekModels, modelName) != -1:
+		return MODEL_FAMILY_DEEPSEEK
 	default:
 		return MODEL_FAMILY_UNKNOWN
 	}
-}
-
-func SupportedModels() []string {
-	return append(append(OpenAiModels[:0:0], OpenAiModels...), append(GoogleModels[:0:0], GoogleModels...)...)
 }

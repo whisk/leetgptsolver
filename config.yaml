@@ -6,6 +6,9 @@ gemini_credentials_file: "/path/to/gcloud/application_default_credentials.json"
 
 claude_api_key: sk-your-key-here
 
+# for deepseek models
+deepseek_api_key: sk-your-key-here
+
 prompt_template: |
   Hi, this is a coding interview. You will be given:
   * A problem statement (with sample test cases if available).

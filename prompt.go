@@ -12,6 +12,7 @@ import (
 	"whisk/leetgptsolver/pkg/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
+	"github.com/cohesion-org/deepseek-go"
 	"github.com/liushuangls/go-anthropic"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
@@ -45,8 +46,10 @@ func prompt(args []string) {
 		prompter = promptGoogle
 	case leetgptsolver.MODEL_FAMILY_ANTHROPIC:
 		prompter = promptAnthropic
+	case leetgptsolver.MODEL_FAMILY_DEEPSEEK:
+		prompter = promptDeepseek
 	default:
-		log.Error().Msgf("Unknown LLM %s", modelName)
+		log.Error().Msgf("No prompter found for model %s", modelName)
 		return
 	}
 
@@ -56,7 +59,7 @@ func prompt(args []string) {
 	errorsCnt := 0
 outerLoop:
 	for i, file := range files {
-		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s...", i+1, len(files), modelName, file)
+		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
 
 		var problem Problem
 		err := problem.ReadProblem(file)
@@ -67,7 +70,7 @@ outerLoop:
 		}
 		if _, ok := problem.Solutions[modelName]; ok && !viper.GetBool("force") {
 			skippedCnt += 1
-			log.Info().Msg("Already solved")
+			log.Info().Msgf("Already solved at %s", problem.Solutions[modelName].SolvedAt.String())
 			continue
 		}
 
@@ -102,7 +105,7 @@ outerLoop:
 				continue
 			}
 
-			log.Info().Msgf("Got %d line(s) of code", strings.Count(solution.TypedCode, "\n"))
+			log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
 			problem.Solutions[modelName] = *solution
 			problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
 			err = problem.SaveProblemInto(file)
@@ -145,6 +148,51 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 				},
 			},
 			Seed: &seed,
+		},
+	)
+	latency := time.Since(t0)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Choices) == 0 {
+		return nil, NewNonRetriableError(errors.New("no choices in response"))
+	}
+	answer := resp.Choices[0].Message.Content
+	log.Trace().Msgf("Got answer:\n%s", answer)
+	return &Solution{
+		Lang:         lang,
+		Prompt:       prompt,
+		Answer:       answer,
+		TypedCode:    extractCode(answer),
+		Model:        resp.Model,
+		SolvedAt:     time.Now(),
+		Latency:      latency,
+		PromptTokens: resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
+	}, nil
+}
+
+func promptDeepseek(q Question, modelName string) (*Solution, error) {
+	client := deepseek.NewClient(viper.GetString("deepseek_api_key"))
+	lang, prompt, err := generatePrompt(q)
+	if err != nil {
+		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
+	}
+	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
+	log.Trace().Msgf("Generated prompt:\n%s", prompt)
+
+	t0 := time.Now()
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		&deepseek.ChatCompletionRequest{
+			Model: modelName,
+			Messages: []deepseek.ChatCompletionMessage{
+				{
+					Role:    deepseek.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
+			Temperature: 0.0,
 		},
 	)
 	latency := time.Since(t0)
