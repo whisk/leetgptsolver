@@ -15,6 +15,7 @@ const (
 	MODEL_FAMILY_GOOGLE
 	MODEL_FAMILY_ANTHROPIC
 	MODEL_FAMILY_DEEPSEEK
+	MODEL_FAMILY_XAI
 )
 
 var OpenAiModels = []string{
@@ -39,6 +40,10 @@ var DeepseekModels = []string{
 	deepseek.DeepSeekChat,
 }
 
+var XaiModels = []string{
+	"grok-2-1212", // The grok-2-1212 models have a knowledge cutoff date of July 17, 2024.
+}
+
 var supportedModels []string
 
 func init() {
@@ -46,6 +51,7 @@ func init() {
 	supportedModels = append(supportedModels, GoogleModels...)
 	supportedModels = append(supportedModels, AnthropicModels...)
 	supportedModels = append(supportedModels, DeepseekModels...)
+	supportedModels = append(supportedModels, XaiModels...)
 }
 
 func SupportedModels() []string {
@@ -62,6 +68,8 @@ func ModelFamily(modelName string) int {
 		return MODEL_FAMILY_ANTHROPIC
 	case slices.Index(DeepseekModels, modelName) != -1:
 		return MODEL_FAMILY_DEEPSEEK
+	case slices.Index(XaiModels, modelName) != -1:
+		return MODEL_FAMILY_XAI
 	default:
 		return MODEL_FAMILY_UNKNOWN
 	}

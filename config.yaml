@@ -1,13 +1,19 @@
+# for chatgpt models
 chatgpt_api_key: sk-your-key-here
 
+# for google cloud (vertex ai)
 gemini_project_id: "project-1234"
 gemini_region: "us-central1"
 gemini_credentials_file: "/path/to/gcloud/application_default_credentials.json"
 
+# for claude models
 claude_api_key: sk-your-key-here
 
 # for deepseek models
 deepseek_api_key: sk-your-key-here
+
+# for grok models
+xai_api_key: xai-your-key-here
 
 prompt_template: |
   Hi, this is a coding interview. You will be given:
