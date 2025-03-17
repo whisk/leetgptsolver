@@ -14,7 +14,7 @@ import (
 
 var leetcodeThrottler throttler.Throttler
 
-func submit(args []string, targetModel string) {
+func submit(args []string, modelName string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -22,7 +22,6 @@ func submit(args []string, targetModel string) {
 	}
 
 	log.Info().Msgf("Submitting %d solutions...", len(files))
-	sentCnt := 0
 	submittedCnt := 0
 	skippedCnt := 0
 	errorsCnt := 0
@@ -40,47 +39,47 @@ outerLoop:
 			continue
 		}
 
-		submitted := 0
-		// TODO: submit for a single model per run to not overcomplicate the logic
-		for modelName, solv := range problem.Solutions {
-			if targetModel != "" && targetModel != modelName {
-				continue
-			}
-			if solv.TypedCode == "" {
-				log.Error().Msgf("%s has no solution to submit", modelName)
-				skippedCnt += 1
-				continue
-			}
-			subm, ok := problem.Submissions[modelName]
-			if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
-				log.Info().Msgf("%s's solution is already submitted", modelName)
-				skippedCnt += 1
-				continue
-			}
-			log.Info().Msgf("Submitting %s's solution...", modelName)
-			submission, err := submitAndCheckSolution(problem.Question, solv)
-			sentCnt += 1
-			if err != nil {
-				errorsCnt += 1
-				if _, ok := err.(FatalError); ok {
-					log.Err(err).Msgf("Aborting...")
-					break outerLoop
-				}
-				log.Err(err).Msgf("Failed to submit or check %s's solution", modelName)
-				continue
-			}
-
-			log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
-			problem.Submissions[modelName] = *submission
-			err = problem.SaveProblemInto(file)
-			if err != nil {
-				log.Err(err).Msg("Failed to save the submission result")
-				errorsCnt += 1
-				continue
-			}
-			submitted = 1
+		solv, ok := problem.Solutions[modelName]
+		if !ok {
+			log.Warn().Msgf("Model %s has no solution to submit", modelName)
+			skippedCnt += 1
+			continue
 		}
-		submittedCnt += submitted
+		if modelName != "" && modelName != modelName {
+			continue
+		}
+		if solv.TypedCode == "" {
+			log.Error().Msgf("%s has no solution to submit", modelName)
+			skippedCnt += 1
+			continue
+		}
+		subm, ok := problem.Submissions[modelName]
+		if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
+			log.Info().Msgf("%s's solution is already submitted", modelName)
+			skippedCnt += 1
+			continue
+		}
+		log.Info().Msgf("Submitting %s's solution...", modelName)
+		submission, err := submitAndCheckSolution(problem.Question, solv)
+		if err != nil {
+			errorsCnt += 1
+			if _, ok := err.(FatalError); ok {
+				log.Err(err).Msgf("Aborting...")
+				break outerLoop
+			}
+			log.Err(err).Msgf("Failed to submit or check %s's solution", modelName)
+			continue
+		}
+
+		log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
+		problem.Submissions[modelName] = *submission
+		err = problem.SaveProblemInto(file)
+		if err != nil {
+			log.Err(err).Msg("Failed to save the submission result")
+			errorsCnt += 1
+			continue
+		}
+		submittedCnt += 1
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
 	log.Info().Msgf("Skipped problems: %d", skippedCnt)
