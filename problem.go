@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -17,7 +18,9 @@ type Problem struct {
 	Question    Question
 	Solutions   map[string]Solution
 	Submissions map[string]Submission
+	// metadata
 	Path        string `json:"-"`
+	Filename    string `json:"-"`
 }
 
 type Question struct {
@@ -49,10 +52,12 @@ type Question struct {
 			CompanyTagStats string
 		}
 	}
-	// parts of question stats
-	acRate string
-
-	DownloadedAt time.Time
+	// metadata. It is always recalculated on read
+	DownloadedAt        time.Time
+	AcRate              string
+	ContentFeatures     string
+	CodeSnippetFeatures map[string]string
+	Url                 string
 }
 
 type Solution struct {
@@ -89,14 +94,22 @@ type Submission struct {
 	SubmittedAt   time.Time
 }
 
-// should we use path field to save to, not a separate argument?
-func (p Problem) SaveProblemInto(destPath string) error {
+func (p Problem) MarshalJSON() (bytes.Buffer, error) {
 	var jsonBytes bytes.Buffer
 	enc := json.NewEncoder(&jsonBytes)
 	enc.SetEscapeHTML(false)
 	err := enc.Encode(p)
 	if err != nil {
-		return fmt.Errorf("failed to marshall problem to json: %w", err)
+		return bytes.Buffer{}, fmt.Errorf("failed to marshall problem to json: %w", err)
+	}
+	return jsonBytes, nil
+}
+
+// should we use path field to save to, not a separate argument?
+func (p Problem) SaveProblemInto(destPath string) error {
+	jsonBytes, err := p.MarshalJSON()
+	if err != nil {
+		return err
 	}
 	file, err := os.Create(destPath)
 	if err != nil {
@@ -122,14 +135,23 @@ func (p *Problem) ReadProblem(srcPath string) error {
 		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
 	}
 
+	// enrich problem with metadata
 	var stats map[string]any
 	err = json.Unmarshal([]byte(p.Question.Data.Question.Stats), &stats)
 	if err != nil {
 		log.Err(err).Msg("failed to unmarshall question stats")
 	}
-	p.Question.acRate, _ = parseAcRate(stats["acRate"])
+	p.Question.AcRate, _ = parseAcRate(stats["acRate"])
+
+	p.Question.ContentFeatures = p.Question.parseContentFeatures()
+	p.Question.CodeSnippetFeatures = map[string]string{}
+	for _, lang := range p.Question.Data.Question.CodeSnippets {
+		p.Question.CodeSnippetFeatures[lang.LangSlug] = p.Question.SnippetFeatures([]string{lang.LangSlug})
+	}
+	p.Question.Url = p.Url()
 
 	p.Path = srcPath
+	p.Filename = filepath.Base(srcPath)
 	if p.Solutions == nil {
 		p.Solutions = map[string]Solution{}
 	}
@@ -176,9 +198,9 @@ func (p *Problem) ProblemToTsv(models, languages []string) []byte {
 		p.Question.Data.Question.Difficulty,
 		fmt.Sprintf("%d", p.Question.Data.Question.Likes),
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
-		p.Question.ContentFeatures(),
+		p.Question.ContentFeatures,
 		p.Question.SnippetFeatures(languages),
-		p.Question.AcRate(),
+		p.Question.AcRate,
 	}
 	for _, m := range models {
 		if solv, ok := p.Solutions[m]; ok {
@@ -206,15 +228,15 @@ func (p Problem) Url() string {
 	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug + "/"
 }
 
-func (q Question) FindSnippet(languages []string) (string, string) {
+func (q Question) FindSnippet(languageSlugs []string) (string, string) {
 	selectedSnippet := ""
 	selectedLang := ""
 outerLoop:
-	for _, lang := range languages {
+	for _, langSlug := range languageSlugs {
 		for _, snippet := range q.Data.Question.CodeSnippets {
-			if snippet.LangSlug == lang {
+			if snippet.LangSlug == langSlug {
 				selectedSnippet = snippet.Code
-				selectedLang = lang
+				selectedLang = langSlug
 				break outerLoop
 			}
 		}
@@ -224,7 +246,7 @@ outerLoop:
 	return selectedSnippet, selectedLang
 }
 
-func (q Question) ContentFeatures() string {
+func (q Question) parseContentFeatures() string {
 	var features []string
 	// has links
 	if regexp.MustCompile(`<a\s+`).MatchString(q.Data.Question.Content) {
@@ -251,9 +273,4 @@ func (q Question) SnippetFeatures(languages []string) string {
 	}
 
 	return ""
-}
-
-func (q Question) AcRate() string {
-	res, _ := parseAcRate(q.acRate)
-	return res
 }

@@ -53,16 +53,18 @@ func main() {
 			download(args)
 		},
 	}
-	cmdDownload.Flags().BoolP("list", "l", false, "list available problems on leetcode")
+	cmdDownload.Flags().BoolP("slugs", "s", false, "list problem slugs on leetcode")
 	viper.BindPFlags(cmdDownload.Flags())
 
-	cmdShow := &cobra.Command{
-		Use:   "show",
-		Short: "Show problems info",
+	cmdList := &cobra.Command{
+		Use:   "list",
+		Short: "List problems info using jq",
 		Run: func(cmd *cobra.Command, args []string) {
-			show(args)
+			list(args, cmd.Flag("where").Value.String(), cmd.Flag("print").Value.String())
 		},
 	}
+	cmdList.Flags().StringP("where", "w", "", "filter problems by where clause (using jq)")
+	cmdList.Flags().StringP("print", "p", ".", "print fields (using jq)")
 
 	cmdPrompt := &cobra.Command{
 		Use:   "prompt",
@@ -106,7 +108,7 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(cmdDownload, cmdShow, cmdPrompt, cmdSubmit, cmdReport, cmdFix)
+	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdReport, cmdFix)
 
 	if err := rootCmd.Execute(); err != nil {
         panic(err)

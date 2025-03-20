@@ -10,7 +10,7 @@ Research to identify the capabilities of LLMs in solving coding interview proble
 - [ ] Add version information
 - [ ] Detect a question creation time
 - [ ] Implement a simple custom downloading queue
-- [ ] Add jq filtering for reporting
+- [x] Add jq filtering for reporting
 - [ ] Replace JSON files with a local database for questions
 - [ ] Implement a real rate limiter instead of SimpleThrottler
 
