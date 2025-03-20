@@ -44,7 +44,7 @@ func download(args []string) {
 	}
 	log.Info().Msgf("Got %d question slugs", len(questionSlugs))
 
-	if viper.GetBool("list") {
+	if viper.GetBool("slugs") {
 		printQuestions(questionSlugs)
 	} else if len(files) == 0 {
 		downloadQuestions(questionSlugs, viper.GetString("dir"))
