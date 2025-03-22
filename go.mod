@@ -11,7 +11,7 @@ require (
 	github.com/liushuangls/go-anthropic v1.6.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/rs/zerolog v1.33.0
-	github.com/sashabaranov/go-openai v1.38.0
+	github.com/sashabaranov/go-openai v1.38.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	google.golang.org/api v0.221.0

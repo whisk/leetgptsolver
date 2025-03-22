@@ -19,9 +19,10 @@ const (
 )
 
 var OpenAiModels = []string{
-	openai.GPT4Turbo0125,
-	openai.O120241217,
-	openai.O3Mini20250131,
+	openai.GPT4Turbo0125,           // Knowledge Cutoff: Dec 01, 2023
+	openai.O120241217,              // Knowledge Cutoff: Oct 01, 2023
+	openai.O3Mini20250131,          // Knowledge Cutoff: Oct 01, 2023
+	openai.GPT4Dot5Preview20250227, // Knowledge Cutoff: Oct 01, 2023
 }
 
 var GoogleModels = []string{
@@ -32,12 +33,12 @@ var GoogleModels = []string{
 }
 
 var AnthropicModels = []string{
-	anthropic.ModelClaude3Opus20240229,
-	"claude-3-7-sonnet-20250219",
+	anthropic.ModelClaude3Opus20240229, // Training data cut-off: Aug 2023
+	"claude-3-7-sonnet-20250219",       // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
 }
 
 var DeepseekModels = []string{
-	deepseek.DeepSeekChat,
+	deepseek.DeepSeekChat, // points to DeepSeek-V3 as of Mar 2025
 }
 
 var XaiModels = []string{
