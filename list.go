@@ -98,7 +98,7 @@ func problemToMap(p Problem) (map[string]any, error) {
 		return nil, fmt.Errorf("failed to marshal the problem: %w", err)
 	}
 	var pMap map[string]any
-	err = json.Unmarshal(jsonBytes.Bytes(), &pMap)
+	err = json.Unmarshal(jsonBytes, &pMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal the problem back: %w", err)
 	}
