@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,8 +20,8 @@ type Problem struct {
 	Solutions   map[string]Solution
 	Submissions map[string]Submission
 	// metadata
-	Path        string `json:"-"`
-	Filename    string `json:"-"`
+	Path     string `json:"-"`
+	Filename string `json:"-"`
 }
 
 type Question struct {
@@ -55,6 +56,8 @@ type Question struct {
 	// metadata. It is always recalculated on read
 	DownloadedAt        time.Time
 	AcRate              string
+	TotalSubmissions    int
+	TotalAccepted       int
 	ContentFeatures     string
 	CodeSnippetFeatures map[string]string
 	Url                 string
@@ -136,12 +139,10 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	}
 
 	// enrich problem with metadata
-	var stats map[string]any
-	err = json.Unmarshal([]byte(p.Question.Data.Question.Stats), &stats)
+	err = scanAcRate(p.Question.Data.Question.Stats, &p.Question)
 	if err != nil {
-		log.Err(err).Msg("failed to unmarshall question stats")
+		return fmt.Errorf("failed to scan acRate: %w", err)
 	}
-	p.Question.AcRate, _ = parseAcRate(stats["acRate"])
 
 	p.Question.ContentFeatures = p.Question.parseContentFeatures()
 	p.Question.CodeSnippetFeatures = map[string]string{}
@@ -200,7 +201,7 @@ func (p *Problem) ProblemToTsv(models, languages []string) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures,
 		p.Question.SnippetFeatures(languages),
-		p.Question.AcRate,
+		fmt.Sprintf("%0.2f", p.Question.AcRate),
 	}
 	for _, m := range models {
 		if solv, ok := p.Solutions[m]; ok {
@@ -273,4 +274,32 @@ func (q Question) SnippetFeatures(languages []string) string {
 	}
 
 	return ""
+}
+
+func scanAcRate(statsStr string, q *Question) error {
+	var stats map[string]any
+	err := json.Unmarshal([]byte(statsStr), &stats)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall question stats: %w", err)
+	}
+
+	acRate, ok := stats["acRate"].(string)
+	if !ok {
+		return errors.New("acRate is not a string")
+	}
+	q.AcRate = strings.TrimSuffix(acRate, "%")
+
+	// for a unknown reason totalSubmissionRaw and totalAcceptedRaw are float64, not int
+	totalSubmissions, ok := stats["totalSubmissionRaw"].(float64)
+	if !ok {
+		return errors.New("totalSubmissionRaw is not an string")
+	}
+	q.TotalSubmissions = int(totalSubmissions)
+	totalAccepted, ok := stats["totalAcceptedRaw"].(float64)
+	if !ok {
+		return errors.New("totalAcceptedRaw is not an string")
+	}
+	q.TotalAccepted = int(totalAccepted)
+
+	return nil
 }
