@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/itchyny/gojq"
 	"github.com/rs/zerolog/log"
 )
+
+const SEPARATOR = "\t"
 
 func list(args []string, whereExpr string, printExpr string) {
 	files, err := filenamesFromArgs(args)
@@ -31,6 +34,9 @@ func list(args []string, whereExpr string, printExpr string) {
 		log.Fatal().Err(err).Msg("failed to parse print query")
 		return
 	}
+	var s strings.Builder
+	queryToHeader(printQuery, &s)
+	fmt.Println(s.String())
 
 outerLoop:
 	for _, file := range files {
@@ -85,7 +91,7 @@ outerLoop:
 				log.Err(err).Msg("failed to print")
 				continue outerLoop
 			}
-			fmt.Printf("%v\t", v)
+			fmt.Printf("%v" + SEPARATOR, v)
 		}
 		fmt.Println()
 	}
@@ -105,4 +111,22 @@ func problemToMap(p Problem) (map[string]any, error) {
 	pMap["Path"] = p.Path
 	pMap["Filename"] = p.Filename
 	return pMap, nil
+}
+
+// convert the "print" query into a format suitable for a header row, allowing for nicely named columns
+// e.g., "a,b,c" -> "a b c"
+func queryToHeader(e *gojq.Query, s *strings.Builder) {
+	if e.Term != nil {
+		s.WriteString(e.Term.String())
+	} else if e.Right != nil {
+		queryToHeader(e.Left, s)
+		if e.Op == gojq.OpComma {
+			s.WriteString(SEPARATOR)
+		} else {
+			s.WriteByte(' ')
+			s.WriteString(e.Op.String())
+			s.WriteByte(' ')
+		}
+		queryToHeader(e.Right, s)
+	}
 }
