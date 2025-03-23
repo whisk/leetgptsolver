@@ -36,14 +36,6 @@ func humanizeTime(t time.Time) string {
 	return t.Format(time.DateTime)
 }
 
-func parseAcRate(acRate any) (string, error) {
-	acRateStr, ok := acRate.(string)
-	if !ok {
-		return "", errors.New("acRate is not a string")
-	}
-	return strings.TrimSuffix(acRateStr, "%"), nil
-}
-
 func fileExists(name string) (bool, error) {
 	_, err := os.Stat(name)
 	if err == nil {
