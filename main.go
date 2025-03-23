@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -38,6 +39,7 @@ func main() {
 	cobra.OnInitialize(initConfig, initVerbosity)
 	consoleWriter := zerolog.NewConsoleWriter()
 	consoleWriter.TimeFormat = time.DateTime
+	consoleWriter.Out = os.Stderr
 	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()
 
 	rootCmd := &cobra.Command{Use: "leetgptsolver", CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true}}
