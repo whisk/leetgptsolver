@@ -97,15 +97,18 @@ type Submission struct {
 	SubmittedAt   time.Time
 }
 
-func (p Problem) MarshalJSON() (bytes.Buffer, error) {
+func (p Problem) MarshalJSON() ([]byte, error) {
 	var jsonBytes bytes.Buffer
 	enc := json.NewEncoder(&jsonBytes)
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(p)
+
+	// we need to use alias to avoid infinite recursion
+	type ProblemAlias Problem
+	err := enc.Encode(ProblemAlias(p))
 	if err != nil {
-		return bytes.Buffer{}, fmt.Errorf("failed to marshall problem to json: %w", err)
+		return nil, fmt.Errorf("failed to marshal problem to json: %w", err)
 	}
-	return jsonBytes, nil
+	return jsonBytes.Bytes(), nil
 }
 
 // should we use path field to save to, not a separate argument?
@@ -119,7 +122,7 @@ func (p Problem) SaveProblemInto(destPath string) error {
 		return err
 	}
 	defer file.Close()
-	n, err := jsonBytes.WriteTo(file)
+	n, err := file.Write(jsonBytes)
 	if err != nil {
 		return err
 	}
@@ -135,7 +138,7 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	}
 	err = json.Unmarshal(contents, &p)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall problem from json: %w", err)
+		return fmt.Errorf("failed to unmarshal problem from json: %w", err)
 	}
 
 	// enrich problem with metadata
@@ -280,7 +283,7 @@ func scanAcRate(statsStr string, q *Question) error {
 	var stats map[string]any
 	err := json.Unmarshal([]byte(statsStr), &stats)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall question stats: %w", err)
+		return fmt.Errorf("failed to unmarshal question stats: %w", err)
 	}
 
 	acRate, ok := stats["acRate"].(string)
