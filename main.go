@@ -53,7 +53,7 @@ func main() {
 			download(args)
 		},
 	}
-	cmdDownload.Flags().BoolP("slugs", "s", false, "list problem slugs on leetcode")
+	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
 	viper.BindPFlags(cmdDownload.Flags())
 
 	cmdList := &cobra.Command{

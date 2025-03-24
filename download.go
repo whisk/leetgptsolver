@@ -33,47 +33,51 @@ const MAX_CONSECUTIVE_ERRORS = 5
 func download(args []string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get files")
+		log.Fatal().Err(err).Msg("failed to get files")
 		return
 	}
 
-	questionSlugs, err := getQuestionSlugs()
+	availableSlugs, err := getAvailableSlugs()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get questions slugs")
+		log.Fatal().Err(err).Msg("failed to get questions slugs")
 		return
 	}
-	log.Info().Msgf("Got %d question slugs", len(questionSlugs))
+	log.Info().Msgf("got %d question slugs", len(availableSlugs))
 
+	// just print slugs
 	if viper.GetBool("slugs") {
-		printQuestions(questionSlugs)
-	} else if len(files) == 0 {
-		downloadQuestions(questionSlugs, viper.GetString("dir"))
+		printQuestions(availableSlugs)
 		return
 	}
 
-	// filter slugs to download
-	slugsMap := map[string]QuestionSlug{}
-	for _, qs := range questionSlugs {
-		slugsMap[qs.Stat.TitleSlug] = qs
-	}
 	slugsToDownload := []QuestionSlug{}
+	// download questions
+	if len(files) == 0 {
+		slugsToDownload = availableSlugs
+	} else {
+		// filter slugs to download
+		slugsMap := map[string]QuestionSlug{}
+		for _, qs := range availableSlugs {
+			slugsMap[qs.Stat.TitleSlug] = qs
+		}
 
-	log.Info().Msgf("Searching for %d questions...", len(files))
-	for _, file := range files {
-		// TODO: very awkward, improve
-		title := filepath.Base(file)
-		title = strings.TrimSuffix(title, filepath.Ext(file))
+		log.Info().Msgf("searching for %d question(s)...", len(files))
+		for _, file := range files {
+			// TODO: very awkward, improve
+			title := filepath.Base(file)
+			title = strings.TrimSuffix(title, filepath.Ext(file))
 
-		if qs, ok := slugsMap[title]; ok {
-			slugsToDownload = append(slugsToDownload, qs)
-		} else {
-			log.Error().Msgf("Unknown problem %s, skipping", title)
+			if qs, ok := slugsMap[title]; ok {
+				slugsToDownload = append(slugsToDownload, qs)
+			} else {
+				log.Error().Msgf("unknown problem %s, skipping", title)
+			}
 		}
 	}
 	downloadQuestions(slugsToDownload, viper.GetString("dir"))
 }
 
-func getQuestionSlugs() ([]QuestionSlug, error) {
+func getAvailableSlugs() ([]QuestionSlug, error) {
 	c := client()
 	resp, err := c.Get("https://leetcode.com/api/problems/algorithms/")
 	if err != nil {
@@ -147,7 +151,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 
 // for some reason first couple of problems may fail to bypass cloudflare
 func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
-	log.Debug().Msgf("Queueing %d questions...", len(slugs))
+	log.Debug().Msgf("queueing %d questions...", len(slugs))
 
 	downloadedCnt := 0
 	alreadyDownloadedCnt := 0
@@ -170,14 +174,14 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	signalChan := make(chan os.Signal, 1)
 	go func() {
 		s := <-signalChan
-		log.Info().Msgf("Got %v, terminating", s)
+		log.Info().Msgf("got %v, terminating", s)
 		exitSignal = s
 	}()
 
 	c.OnResponse(func(r *colly.Response) {
 		consecutiveErrorsCnt = 0
 		if exitSignal != nil {
-			log.Info().Msg("Terminated by user")
+			log.Info().Msg("terminated by user")
 			// we don't like os.Exit, but it seems that colly doesn't have a good way to stop parallel requests
 			code, _ := exitSignal.(syscall.Signal)
 			os.Exit(int(code))
@@ -189,13 +193,13 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		problem.Question.DownloadedAt = time.Now()
 		err := json.Unmarshal(r.Body, &problem.Question)
 		if err != nil {
-			log.Err(err).Msg("Failed to unmarshall question from json")
+			log.Err(err).Msg("failed to unmarshall question from json")
 			return
 		}
 
 		dstFile := r.Ctx.Get("dstFile")
 		if dstFile == "" {
-			log.Error().Msg("No context found")
+			log.Error().Msg("no context found")
 			return
 		}
 
@@ -205,18 +209,18 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		signal.Reset()
 
 		if err != nil {
-			log.Err(err).Msg("Failed to download question")
+			log.Err(err).Msg("failed to download question")
 			return
 		}
-		log.Debug().Msgf("Downloaded %s successfully", dstFile)
+		log.Debug().Msgf("downloaded %s successfully", dstFile)
 		downloadedCnt += 1
 	})
 	c.OnError(func(r *colly.Response, e error) {
-		log.Error().Err(e).Msgf("Failed to fetch question %s", r.Request.Ctx.Get("dstFile"))
+		log.Error().Err(e).Msgf("failed to fetch question %s", r.Request.Ctx.Get("dstFile"))
 		consecutiveErrorsCnt += 1
 		errorsCnt += 1
 		if consecutiveErrorsCnt >= MAX_CONSECUTIVE_ERRORS {
-			log.Error().Msgf("Too many errors (%d), aborting...", consecutiveErrorsCnt)
+			log.Error().Msgf("too many errors (%d), aborting...", consecutiveErrorsCnt)
 			os.Exit(1)
 		}
 	})
@@ -231,14 +235,14 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
 		ok, _ := fileExists(dstFile)
-		if ok {
+		if ok && !viper.GetBool("force") {
 			log.Debug().Msgf("file %s already exists", dstFile)
 			alreadyDownloadedCnt += 1
 			continue
 		}
 		queryBytes, err := makeQuestionQuery(qs)
 		if err != nil {
-			log.Err(err).Msg("Failed to make a query")
+			log.Err(err).Msg("failed to make a query")
 		}
 		ctx := colly.NewContext()
 		ctx.Put("dstFile", dstFile)
@@ -256,10 +260,10 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 	c.Wait()
 
 	if queuedCnt > 0 {
-		log.Info().Msgf("Downloaded successfully: %d", downloadedCnt)
-		log.Info().Msgf("Already downloaded: %d", alreadyDownloadedCnt)
-		log.Info().Msgf("Skipped: %d", skippedCnt)
-		log.Info().Msgf("Errors: %d", errorsCnt)
+		log.Info().Msgf("downloaded successfully: %d", downloadedCnt)
+		log.Info().Msgf("already downloaded: %d", alreadyDownloadedCnt)
+		log.Info().Msgf("skipped: %d", skippedCnt)
+		log.Info().Msgf("errors: %d", errorsCnt)
 	}
 	return downloadedCnt
 }
