@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -11,6 +12,14 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
+
+type InvalidCodeError struct {
+	error
+}
+
+func NewInvalidCodeError(err error) error {
+	return InvalidCodeError{err}
+}
 
 var leetcodeThrottler throttler.Throttler
 
@@ -96,6 +105,19 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 
 	submissionId, err := submitCode(SubmitUrl(q), subReq)
 	if err != nil {
+		var subErr InvalidCodeError
+		if errors.As(err, &subErr) {
+			// non-retriable submission error, like "Your code is too long"
+			return &Submission{
+				SubmitRequest: subReq,
+				CheckResponse: CheckResponse{
+					StatusMsg:  subErr.Error(),
+					Finished:  true,
+				},
+				SubmittedAt: time.Now(),
+			}, nil
+		}
+
 		return nil, err
 	}
 
@@ -119,7 +141,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(subReq)
 	if err != nil {
-		return 0, NewNonRetriableError(fmt.Errorf("failed marshalling GraphQL: %w", err))
+		return 0, NewNonRetriableError(fmt.Errorf("failed marshaling GraphQL: %w", err))
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
@@ -134,6 +156,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		leetcodeThrottler.Touch()
 		log.Trace().Msgf("submission response body:\n%s", string(respBody))
 		if code == http.StatusBadRequest || code == 499 {
+			leetcodeThrottler.Slowdown()
 			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
@@ -148,18 +171,31 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		return 0, err
 	}
 
-	var respStruct map[string]uint64
-	err = json.Unmarshal(respBody, &respStruct)
+	var respStruct map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(respBody))
+	decoder.UseNumber()
+	err = decoder.Decode(&respStruct)
+	log.Trace().Msgf("submission response struct: %#v", respStruct)
 	if err != nil {
-		return 0, fmt.Errorf("failed unmarshalling submission response: %w", err)
+		return 0, fmt.Errorf("failed to unmarshal submission response: %w", err)
 	}
-	submissionId := respStruct["submission_id"]
+	if errorMsg, ok := respStruct["error"].(string); ok && respStruct["error"] == "Your code is too long. Please reduce your code size and try again." {
+		return 0, fmt.Errorf("submission error: %w", NewInvalidCodeError(errors.New(errorMsg)))
+	}
+	submissionNumber, ok := respStruct["submission_id"].(json.Number);
+	if !ok {
+		return 0, fmt.Errorf("submission_id is not a number: %v", respStruct["submission_id"])
+	}
+	submissionId, err := submissionNumber.Int64()
+	if err != nil {
+		return 0, fmt.Errorf("invalid submission id: %w", err)
+	}
 	if submissionId <= 0 {
 		return 0, fmt.Errorf("invalid submission id: %d", submissionId)
 	}
 	log.Debug().Msgf("received submission_id: %d", submissionId)
 
-	return submissionId, nil
+	return uint64(submissionId), nil
 }
 
 func checkStatus(url string) (*CheckResponse, error) {
@@ -172,7 +208,7 @@ func checkStatus(url string) (*CheckResponse, error) {
 		log.Trace().Msgf("checking submission status (%d/%d)...", i, maxRetries)
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		leetcodeThrottler.Touch()
-		log.Trace().Msgf("Check response body:\n%s", string(respBody))
+		log.Trace().Msgf("Check response body: %s", string(respBody))
 		if code == http.StatusBadRequest || code == 499 {
 			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
 		}
@@ -184,7 +220,7 @@ func checkStatus(url string) (*CheckResponse, error) {
 
 		err = json.Unmarshal(respBody, &checkResp)
 		if err != nil {
-			return nil, fmt.Errorf("failed unmarshalling check response: %w", err)
+			return nil, fmt.Errorf("failed to unmarshal check response: %w", err)
 		}
 
 		if checkResp.Finished {
