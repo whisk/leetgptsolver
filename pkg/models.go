@@ -38,7 +38,8 @@ var AnthropicModels = []string{
 }
 
 var DeepseekModels = []string{
-	deepseek.DeepSeekChat, // points to DeepSeek-V3 as of Mar 2025
+	deepseek.DeepSeekChat, // points to DeepSeek-V3 as of Mar 2025, most likely the version 2024/12/26 (https://api-docs.deepseek.com/news/news1226)
+	deepseek.DeepSeekReasoner, // points to DeepSeek-R1 as of Mar 2025, most likely the version 2025/01/20 (https://api-docs.deepseek.com/news/news250120)
 }
 
 var XaiModels = []string{
