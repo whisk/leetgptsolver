@@ -92,8 +92,13 @@ outerLoop:
 					errorsCnt += 1
 					break outerLoop
 				}
-
 				if _, ok := err.(NonRetriableError); ok {
+					errorsCnt += 1
+					continue outerLoop
+				}
+				// do not retry on this kind of timeout. It usually means the problem takes too much time to solve,
+				// and retrying will not help
+				if errors.Is(err, context.DeadlineExceeded) {
 					errorsCnt += 1
 					continue outerLoop
 				}
@@ -183,6 +188,7 @@ func promptDeepseek(q Question, modelName string) (*Solution, error) {
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
 	t0 := time.Now()
+	client.Timeout = 15 * time.Minute
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		&deepseek.ChatCompletionRequest{
