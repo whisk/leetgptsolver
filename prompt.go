@@ -37,8 +37,13 @@ func prompt(args []string) {
 		log.Error().Msg("Model is not set")
 		return
 	}
+	modelId, modelParams, err := leetgptsolver.ParseModelName(modelName)
+	if err != nil {
+		log.Err(err).Msg("failed to parse model")
+		return
+	}
 
-	var prompter func(Question, string) (*Solution, error)
+	var prompter func(Question, string, map[string]any) (*Solution, error)
 	switch leetgptsolver.ModelFamily(modelName) {
 	case leetgptsolver.MODEL_FAMILY_OPENAI:
 		prompter = promptOpenAi
@@ -82,7 +87,7 @@ outerLoop:
 		promptThrottler.Ready()
 		for promptThrottler.Wait() && i < maxReties {
 			i += 1
-			solution, err = prompter(problem.Question, modelName)
+			solution, err = prompter(problem.Question, modelId, modelParams)
 			promptThrottler.Touch()
 			if err != nil {
 				log.Err(err).Msg("Failed to get a solution")
@@ -132,7 +137,7 @@ outerLoop:
 	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
-func promptOpenAi(q Question, modelName string) (*Solution, error) {
+func promptOpenAi(q Question, modelName string, params map[string]any) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
@@ -178,7 +183,7 @@ func promptOpenAi(q Question, modelName string) (*Solution, error) {
 	}, nil
 }
 
-func promptDeepseek(q Question, modelName string) (*Solution, error) {
+func promptDeepseek(q Question, modelName string, params map[string]any) (*Solution, error) {
 	client := deepseek.NewClient(viper.GetString("deepseek_api_key"))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
@@ -225,7 +230,7 @@ func promptDeepseek(q Question, modelName string) (*Solution, error) {
 }
 
 // very dirty
-func promptXai(q Question, modelName string) (*Solution, error) {
+func promptXai(q Question, modelName string, params map[string]any) (*Solution, error) {
 	config := openai.DefaultConfig(viper.GetString("xai_api_key"))
 	config.BaseURL = "https://api.x.ai/v1"
 	client := openai.NewClientWithConfig(config)
@@ -274,7 +279,7 @@ func promptXai(q Question, modelName string) (*Solution, error) {
 	}, nil
 }
 
-func promptGoogle(q Question, modelName string) (*Solution, error) {
+func promptGoogle(q Question, modelName string, params map[string]any) (*Solution, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error().Msgf("recovered: %v", err)
@@ -332,7 +337,7 @@ func promptGoogle(q Question, modelName string) (*Solution, error) {
 	}, nil
 }
 
-func promptAnthropic(q Question, modelName string) (*Solution, error) {
+func promptAnthropic(q Question, modelName string, params map[string]any) (*Solution, error) {
 	client := anthropic.NewClient(viper.GetString("claude_api_key"))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
