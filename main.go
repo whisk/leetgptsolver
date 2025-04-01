@@ -46,7 +46,10 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	rootCmd.PersistentFlags().StringP("dir", "d", "problems", "")
 	rootCmd.PersistentFlags().CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
-	viper.BindPFlags(rootCmd.PersistentFlags())
+	err := viper.BindPFlags(rootCmd.PersistentFlags())
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to bind flags. This is a bug")
+	}
 
 	cmdDownload := &cobra.Command{
 		Use:   "download",
@@ -56,7 +59,10 @@ func main() {
 		},
 	}
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
-	viper.BindPFlags(cmdDownload.Flags())
+	err = viper.BindPFlags(cmdDownload.Flags())
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to bind flags. This is a bug")
+	}
 
 	cmdList := &cobra.Command{
 		Use:   "list",

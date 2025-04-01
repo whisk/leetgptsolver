@@ -41,7 +41,10 @@ func makeNiceReferer(urlStr string) (string, error) {
 
 func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]byte, int, error) {
 	log.Trace().Msgf("%s %s", method, url)
-	req, err := newRequest(method, url, reqBody)
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
 
 	c := client()
 	req.Header = newHeader()
@@ -135,15 +138,6 @@ func cookie(name string) (*http.Cookie, error) {
 		return nil, nil
 	}
 	return cookies[idx], nil
-}
-
-func newRequest(method string, url string, reqBody io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
 }
 
 func newHeader() http.Header {

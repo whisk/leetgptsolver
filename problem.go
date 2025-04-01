@@ -204,7 +204,7 @@ func (p *Problem) ProblemToTsv(models, languages []string) []byte {
 		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
 		p.Question.ContentFeatures,
 		p.Question.SnippetFeatures(languages),
-		fmt.Sprintf("%0.2f", p.Question.AcRate),
+		p.Question.AcRate,
 	}
 	for _, m := range models {
 		if solv, ok := p.Solutions[m]; ok {
