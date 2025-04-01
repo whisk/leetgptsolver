@@ -165,11 +165,14 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		colly.Async(true),
 	)
 	c.WithTransport(newTransport())
-	c.Limit(&colly.LimitRule{
+	err := c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
 		RandomDelay: 15 * time.Second,
 	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to set download limits")
+	}
 
 	signalChan := make(chan os.Signal, 1)
 	go func() {
@@ -246,13 +249,18 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 		ctx := colly.NewContext()
 		ctx.Put("dstFile", dstFile)
-		c.Request(
+		err = c.Request(
 			"POST",
 			"https://leetcode.com/graphql",
 			bytes.NewBuffer(queryBytes),
 			ctx,
 			hdr,
 		)
+		if err != nil {
+			log.Err(err).Msgf("failed to create question request for %s", qs.Stat.TitleSlug)
+			errorsCnt += 1
+			continue
+		}
 		queuedCnt += 1
 	}
 	log.Info().Msgf("%d questions already downloaded", alreadyDownloadedCnt)

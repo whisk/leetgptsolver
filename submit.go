@@ -54,11 +54,8 @@ outerLoop:
 			skippedCnt += 1
 			continue
 		}
-		if modelName != "" && modelName != modelName {
-			continue
-		}
 		if solv.TypedCode == "" {
-			log.Error().Msgf("%s has no solution to submit", modelName)
+			log.Error().Msgf("Model %s has empty solution", modelName)
 			skippedCnt += 1
 			continue
 		}

@@ -4,10 +4,12 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/vertexai v0.13.3
+	github.com/browserutils/kooky v0.2.2
+	github.com/cohesion-org/deepseek-go v1.2.7
 	github.com/DaRealFreak/cloudflare-bp-go v1.0.4
 	github.com/EDDYCJY/fake-useragent v0.2.0
-	github.com/browserutils/kooky v0.2.2
 	github.com/gocolly/colly v1.2.0
+	github.com/itchyny/gojq v0.12.17
 	github.com/liushuangls/go-anthropic v1.6.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/rs/zerolog v1.33.0
@@ -31,7 +33,6 @@ require (
 	github.com/antchfx/xmlquery v1.4.4 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/cohesion-org/deepseek-go v1.2.7 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -49,7 +50,6 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/itchyny/gojq v0.12.17 // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
