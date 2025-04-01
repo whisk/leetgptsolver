@@ -2,6 +2,8 @@ package leetgptsolver // import "github.com/whisk/leetgptsolver/pkg"
 
 import (
 	"slices"
+	"strconv"
+	"strings"
 
 	deepseek "github.com/cohesion-org/deepseek-go"
 	"github.com/liushuangls/go-anthropic"
@@ -75,4 +77,37 @@ func ModelFamily(modelName string) int {
 	default:
 		return MODEL_FAMILY_UNKNOWN
 	}
+}
+
+func ParseModelName(modelName string) (string, map[string]any, error) {
+	modelParts := strings.SplitN(modelName, ":", 2)
+	if len(modelParts) == 1 {
+		return modelParts[0], map[string]any{}, nil
+	}
+
+	params := make(map[string]any)
+	for _, pair := range strings.Split(modelParts[1], ";") {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key, value := kv[0], kv[1]
+
+		// Try to parse as int
+		if intValue, err := strconv.Atoi(value); err == nil {
+			params[key] = intValue
+			continue
+		}
+
+		// Try to parse as float32
+		if floatValue, err := strconv.ParseFloat(value, 32); err == nil {
+			params[key] = float32(floatValue)
+			continue
+		}
+
+		// Default to string
+		params[key] = value
+	}
+
+	return modelParts[0], params, nil
 }
