@@ -1,5 +1,6 @@
-# latest 99 free problems without images or links in descriptions
+# latest 99 free problems from leetcode
 # 33 easy, 33 medium and 33 hard
+# NOTE: problems with images or links in descriptions, or requiring the implementation of an interface, are excluded
 # created on 2024-03-17
 problems/find-indices-of-stable-mountains.json
 problems/find-the-k-th-character-in-string-game-i.json
