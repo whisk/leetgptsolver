@@ -1,12 +1,13 @@
 package leetgptsolver // import "github.com/whisk/leetgptsolver/pkg"
 
 import (
+	"encoding/json"
+	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	deepseek "github.com/cohesion-org/deepseek-go"
-	"github.com/liushuangls/go-anthropic"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -35,8 +36,8 @@ var GoogleModels = []string{
 }
 
 var AnthropicModels = []string{
-	anthropic.ModelClaude3Opus20240229, // Training data cut-off: Aug 2023
-	"claude-3-7-sonnet-20250219",       // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
+	anthropic.ModelClaude_3_Opus_20240229,  // Training data cut-off: Aug 2023
+	anthropic.ModelClaude3_7Sonnet20250219, // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
 }
 
 var DeepseekModels = []string{
@@ -79,35 +80,22 @@ func ModelFamily(modelName string) int {
 	}
 }
 
-func ParseModelName(modelName string) (string, map[string]any, error) {
-	modelParts := strings.SplitN(modelName, ":", 2)
+// very quick and dirty support for model parameters
+func ParseModelName(modelName string) (string, string, error) {
+	modelParts := strings.SplitN(modelName, "@", 2)
 	if len(modelParts) == 1 {
-		return modelParts[0], map[string]any{}, nil
+		return modelParts[0], "", nil
 	}
 
 	params := make(map[string]any)
-	for _, pair := range strings.Split(modelParts[1], ";") {
-		kv := strings.SplitN(pair, "=", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		key, value := kv[0], kv[1]
-
-		// Try to parse as int
-		if intValue, err := strconv.Atoi(value); err == nil {
-			params[key] = intValue
-			continue
-		}
-
-		// Try to parse as float32
-		if floatValue, err := strconv.ParseFloat(value, 32); err == nil {
-			params[key] = float32(floatValue)
-			continue
-		}
-
-		// Default to string
-		params[key] = value
+	err := json.Unmarshal([]byte(modelParts[1]), &params)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse model parameters: %w", err)
+	}
+	bytes, _ := json.Marshal(params)
+	if string(bytes) != modelParts[1] {
+		return "", "", fmt.Errorf("params are not in a canonical form. Expected: %s", string(bytes))
 	}
 
-	return modelParts[0], params, nil
+	return modelParts[0], modelParts[1], nil
 }

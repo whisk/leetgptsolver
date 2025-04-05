@@ -9,47 +9,26 @@ func TestParseModel(t *testing.T) {
 	tests := []struct {
 		input          string
 		expectedModel  string
-		expectedParams map[string]any
+		expectedParams string
 		expectError    bool
 	}{
 		{
-			input:         "model-name",
-			expectedModel: "model-name",
-			expectedParams: map[string]any{},
-			expectError:   false,
+			input:          "model-name",
+			expectedModel:  "model-name",
+			expectedParams: "",
+			expectError:    false,
 		},
 		{
-			input:         "model-name:key1=value1;key2=42;key3=3.14",
-			expectedModel: "model-name",
-			expectedParams: map[string]any{
-				"key1": "value1",
-				"key2": 42,
-				"key3": float32(3.14),
-			},
-			expectError: false,
+			input:          `model-name@{"key1":"value1","key2":42,"key3":3.14}`,
+			expectedModel:  "model-name",
+			expectedParams: `{"key1":"value1","key2":42,"key3":3.14}`,
+			expectError:    false,
 		},
 		{
-			input:         "model-name:key1=value1;key2=3x",
-			expectedModel: "model-name",
-			expectedParams: map[string]any{
-				"key1": "value1",
-				"key2": "3x",
-			},
-			expectError: false,
-		},
-		{
-			input:         "model-name:key1=value1;key2",
-			expectedModel: "model-name",
-			expectedParams: map[string]any{
-				"key1": "value1",
-			},
-			expectError: false,
-		},
-		{
-			input:         "",
-			expectedModel: "",
-			expectedParams: map[string]any{},
-			expectError:   false,
+			input:          "",
+			expectedModel:  "",
+			expectedParams: "",
+			expectError:    false,
 		},
 	}
 
@@ -66,7 +45,7 @@ func TestParseModel(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(params, test.expectedParams) {
-				t.Errorf("expected params: %v, got: %v", test.expectedParams, params)
+				t.Errorf("expected params: %#v, got: %#v", test.expectedParams, params)
 			}
 		})
 	}
