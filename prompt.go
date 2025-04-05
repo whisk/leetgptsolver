@@ -12,8 +12,9 @@ import (
 	"whisk/leetgptsolver/pkg/throttler"
 
 	"cloud.google.com/go/vertexai/genai"
+	"github.com/anthropics/anthropic-sdk-go"
+	anthropic_option "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/cohesion-org/deepseek-go"
-	"github.com/liushuangls/go-anthropic"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
@@ -43,8 +44,8 @@ func prompt(args []string) {
 		return
 	}
 
-	var prompter func(Question, string, map[string]any) (*Solution, error)
-	switch leetgptsolver.ModelFamily(modelName) {
+	var prompter func(Question, string, string) (*Solution, error)
+	switch leetgptsolver.ModelFamily(modelId) {
 	case leetgptsolver.MODEL_FAMILY_OPENAI:
 		prompter = promptOpenAi
 	case leetgptsolver.MODEL_FAMILY_GOOGLE:
@@ -56,7 +57,7 @@ func prompt(args []string) {
 	case leetgptsolver.MODEL_FAMILY_XAI:
 		prompter = promptXai
 	default:
-		log.Error().Msgf("No prompter found for model %s", modelName)
+		log.Error().Msgf("No prompter found for model %s", modelId)
 		return
 	}
 
@@ -137,7 +138,7 @@ outerLoop:
 	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
-func promptOpenAi(q Question, modelName string, params map[string]any) (*Solution, error) {
+func promptOpenAi(q Question, modelName string, params string) (*Solution, error) {
 	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
@@ -183,7 +184,7 @@ func promptOpenAi(q Question, modelName string, params map[string]any) (*Solutio
 	}, nil
 }
 
-func promptDeepseek(q Question, modelName string, params map[string]any) (*Solution, error) {
+func promptDeepseek(q Question, modelName string, params string) (*Solution, error) {
 	client := deepseek.NewClient(viper.GetString("deepseek_api_key"))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
@@ -230,7 +231,7 @@ func promptDeepseek(q Question, modelName string, params map[string]any) (*Solut
 }
 
 // very dirty
-func promptXai(q Question, modelName string, params map[string]any) (*Solution, error) {
+func promptXai(q Question, modelName string, params string) (*Solution, error) {
 	config := openai.DefaultConfig(viper.GetString("xai_api_key"))
 	config.BaseURL = "https://api.x.ai/v1"
 	client := openai.NewClientWithConfig(config)
@@ -279,7 +280,7 @@ func promptXai(q Question, modelName string, params map[string]any) (*Solution, 
 	}, nil
 }
 
-func promptGoogle(q Question, modelName string, params map[string]any) (*Solution, error) {
+func promptGoogle(q Question, modelName string, params string) (*Solution, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error().Msgf("recovered: %v", err)
@@ -337,8 +338,8 @@ func promptGoogle(q Question, modelName string, params map[string]any) (*Solutio
 	}, nil
 }
 
-func promptAnthropic(q Question, modelName string, params map[string]any) (*Solution, error) {
-	client := anthropic.NewClient(viper.GetString("claude_api_key"))
+func promptAnthropic(q Question, modelName string, params string) (*Solution, error) {
+	client := anthropic.NewClient(anthropic_option.WithAPIKey(viper.GetString("claude_api_key")))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
@@ -346,30 +347,60 @@ func promptAnthropic(q Question, modelName string, params map[string]any) (*Solu
 	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
-	temp := float32(0.0)
-	t0 := time.Now()
-	resp, err := client.CreateMessages(context.Background(), anthropic.MessagesRequest{
-		Model:       modelName,
-		Temperature: &temp,
-		Messages: []anthropic.Message{
-			anthropic.NewUserTextMessage(prompt),
-		},
-		MaxTokens: 4096,
-	})
-	latency := time.Since(t0)
-	if err != nil {
-		var e *anthropic.APIError
-		if errors.As(err, &e) {
-			log.Err(err).Msgf("Messages error, type: %s, message: %s", e.Type, e.Message)
-		} else {
-			log.Err(err).Msgf("Messages error: %v\n", err)
+	var customParams struct {
+		MaxTokens int `json:"max_tokens"`
+		Thinking  struct {
+			Type         string `json:"type"`
+			BudgetTokens int    `json:"budget_tokens"`
 		}
-		return nil, err
+	}
+	if params != "" {
+		err = json.Unmarshal([]byte(params), &customParams)
+		if err != nil {
+			return nil, NewFatalError(fmt.Errorf("failed to parse custom params: %w", err))
+		}
+		log.Debug().Msgf("using custom params: %+v", customParams)
 	}
 
-	answer := resp.Content[0].Text
+	messageParams := anthropic.MessageNewParams{
+		Model:       modelName,
+		Temperature: anthropic.Float(0.0),
+		Messages: []anthropic.MessageParam{{
+			Role: anthropic.MessageParamRoleUser,
+			Content: []anthropic.ContentBlockParamUnion{{
+				OfRequestTextBlock: &anthropic.TextBlockParam{Text: prompt},
+			}},
+		}},
+		MaxTokens: 4096,
+	}
+	if customParams.MaxTokens > 0 {
+		messageParams.MaxTokens = int64(customParams.MaxTokens)
+	}
+	if customParams.Thinking.Type == "enabled" {
+		messageParams.Thinking = anthropic.ThinkingConfigParamUnion{
+			OfThinkingConfigEnabled: &anthropic.ThinkingConfigEnabledParam{
+				Type:         "enabled",
+				BudgetTokens: int64(customParams.Thinking.BudgetTokens),
+			},
+		}
+		messageParams.Temperature = anthropic.Float(1.0)
+	}
 
-	log.Trace().Msgf("Got answer:\n%s", answer)
+	t0 := time.Now()
+	resp, err := client.Messages.New(context.Background(), messageParams)
+	latency := time.Since(t0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send a message: %w", err)
+	}
+
+	log.Trace().Msgf("Got response:\n%+v", resp.Content)
+	answer := ""
+	for _, block := range resp.Content {
+		if block.Text != "" {
+			answer += block.Text + "\n"
+		}
+	}
+
 	return &Solution{
 		Lang:         lang,
 		Prompt:       prompt,
@@ -378,8 +409,8 @@ func promptAnthropic(q Question, modelName string, params map[string]any) (*Solu
 		Model:        modelName,
 		SolvedAt:     time.Now(),
 		Latency:      latency,
-		PromptTokens: resp.Usage.InputTokens,
-		OutputTokens: resp.Usage.OutputTokens,
+		PromptTokens: int(resp.Usage.InputTokens),
+		OutputTokens: int(resp.Usage.OutputTokens),
 	}, nil
 
 }

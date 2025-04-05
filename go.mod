@@ -4,10 +4,10 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/vertexai v0.13.3
-	github.com/browserutils/kooky v0.2.2
-	github.com/cohesion-org/deepseek-go v1.2.7
 	github.com/DaRealFreak/cloudflare-bp-go v1.0.4
 	github.com/EDDYCJY/fake-useragent v0.2.0
+	github.com/browserutils/kooky v0.2.2
+	github.com/cohesion-org/deepseek-go v1.2.7
 	github.com/gocolly/colly v1.2.0
 	github.com/itchyny/gojq v0.12.17
 	github.com/liushuangls/go-anthropic v1.6.0
@@ -32,6 +32,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.4 // indirect
 	github.com/antchfx/xmlquery v1.4.4 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
+	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
@@ -68,6 +69,10 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/zalando/go-keyring v0.2.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
