@@ -33,6 +33,7 @@ var GoogleModels = []string{
 	"gemini-1.5-pro-preview-0409",
 	"gemini-2.0-flash-001",
 	"gemini-2.0-pro-exp-02-05",
+	"gemini-2.5-pro-exp-03-25",
 }
 
 var AnthropicModels = []string{
