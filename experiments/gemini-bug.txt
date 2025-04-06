@@ -1,7 +1,0 @@
-# buggy
-problems/path-sum.json
-problems/3sum.json
-# ok
-problems/kth-largest-element-in-an-array.json
-problems/add-binary.json
-problems/add-two-numbers.json
