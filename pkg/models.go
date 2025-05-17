@@ -48,6 +48,7 @@ var DeepseekModels = []string{
 
 var XaiModels = []string{
 	"grok-2-1212", // The grok-2-1212 models have a knowledge cutoff date of July 17, 2024.
+	"grok-3-latest", // The grok-3-latest models have a knowledge cutoff date of November 17, 2024 (made available on April 18, 2025).
 }
 
 var supportedModels []string
