@@ -44,7 +44,8 @@ func main() {
 
 	rootCmd := &cobra.Command{Use: "leetgptsolver", CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true}}
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
-	rootCmd.PersistentFlags().StringP("dir", "d", "problems", "")
+	rootCmd.PersistentFlags().StringP("dir", "D", "problems", "")
+	rootCmd.PersistentFlags().BoolP("dry-run", "d", false, "do not make any changes to problem files")
 	rootCmd.PersistentFlags().CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
 	err := viper.BindPFlags(rootCmd.PersistentFlags())
 	if err != nil {

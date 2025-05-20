@@ -24,6 +24,9 @@ func NewInvalidCodeError(err error) error {
 var leetcodeThrottler throttler.Throttler
 
 func submit(args []string, modelName string) {
+	if viper.GetBool("dry-run") {
+		log.Warn().Msg("Running in dry-run mode. No changes will be made to problem files")
+	}
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -79,11 +82,13 @@ outerLoop:
 
 		log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
 		problem.Submissions[modelName] = *submission
-		err = problem.SaveProblemInto(file)
-		if err != nil {
-			log.Err(err).Msg("Failed to save the submission result")
-			errorsCnt += 1
-			continue
+		if !viper.GetBool("dry-run") {
+			err = problem.SaveProblemInto(file)
+			if err != nil {
+				log.Err(err).Msg("Failed to save the submission result")
+				errorsCnt += 1
+				continue
+			}
 		}
 		submittedCnt += 1
 	}
