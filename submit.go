@@ -157,9 +157,14 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
 		leetcodeThrottler.Touch()
 		log.Trace().Msgf("submission response body:\n%s", string(respBody))
-		if code == http.StatusBadRequest || code == 499 {
+		if code == http.StatusBadRequest || code == 403 || code == 499 {
+			log.Err(err).Msg("Slowing down...")
 			leetcodeThrottler.Slowdown()
-			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
+			err_message := string(respBody)
+			if len(err_message) > 80 {
+				err_message = err_message[:80] + "..."
+			}
+			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
 			log.Err(err).Msg("Slowing down...")
@@ -211,11 +216,15 @@ func checkStatus(url string) (*CheckResponse, error) {
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		leetcodeThrottler.Touch()
 		log.Trace().Msgf("Check response body: %s", string(respBody))
-		if code == http.StatusBadRequest || code == 499 {
-			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see details: %s", string(respBody)))
+		if code == http.StatusBadRequest || code == 403 || code == 499 {
+			err_message := string(respBody)
+			if len(err_message) > 80 {
+				err_message = err_message[:80] + "..."
+			}
+			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
-			log.Err(err).Msg("")
+			log.Err(err).Msg("Slowing down...")
 			leetcodeThrottler.Slowdown()
 			continue
 		}
