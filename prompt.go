@@ -243,20 +243,36 @@ func promptXai(q Question, modelName string, params string) (*Solution, error) {
 	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
+	var customParams struct {
+		ReasoningEffort string `json:"reasoning_effort"`
+	}
+	if params != "" {
+		err = json.Unmarshal([]byte(params), &customParams)
+		if err != nil {
+			return nil, NewFatalError(fmt.Errorf("failed to parse custom params: %w", err))
+		}
+		log.Debug().Msgf("using custom params: %+v", customParams)
+	}
+
 	seed := int(42)
+	completionRequest := openai.ChatCompletionRequest{
+		Model: modelName,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: prompt,
+			},
+		},
+		Seed: &seed,
+	}
+	if customParams.ReasoningEffort != "" {
+		completionRequest.ReasoningEffort = customParams.ReasoningEffort
+	}
+
 	t0 := time.Now()
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: modelName,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: prompt,
-				},
-			},
-			Seed: &seed,
-		},
+		completionRequest,
 	)
 	latency := time.Since(t0)
 	if err != nil {
