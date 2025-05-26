@@ -14,6 +14,31 @@ import (
 
 var PREFERRED_LANGUAGES = []string{"python3", "python"}
 
+var options struct {
+	// options below usually set by command line flags, but can also be set in config file
+	Force         bool
+	Verbose       int
+	Dir           string
+	DryRun        bool `mapstructure:"dry_run"`
+	Slugs         bool
+	Model         string
+	Retries       int
+	CheckRetries  int `mapstructure:"check_retries"`
+	SubmitRetries int `mapstructure:"submit_retries"`
+	Output        string
+
+	// options below usually set in config file
+	ChatgptApiKey         string `mapstructure:"chatgpt_api_key"`
+	GeminiProjectId       string `mapstructure:"gemini_project_id"`
+	GeminiRegion          string `mapstructure:"gemini_region"`
+	GeminiCredentialsFile string `mapstructure:"gemini_credentials_file"`
+	ClaudeApiKey          string `mapstructure:"claude_api_key"`
+	DeepseekApiKey        string `mapstructure:"deepseek_api_key"`
+	XaiApiKey             string `mapstructure:"xai_api_key"`
+
+	PromptTemplate string `mapstructure:"prompt_template"`
+}
+
 func initConfig() {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config.production")
@@ -23,12 +48,17 @@ func initConfig() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to read config file")
 	}
+
+	err = viper.Unmarshal(&options)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to unmarshal flags. This is a bug")
+	}
 }
 
 func initVerbosity() {
-	if viper.GetInt("verbose") >= 2 {
+	if options.Verbose >= 2 {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	} else if viper.GetInt("verbose") >= 1 {
+	} else if options.Verbose >= 1 {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -45,7 +75,7 @@ func main() {
 	rootCmd := &cobra.Command{Use: "leetgptsolver", CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true}}
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	rootCmd.PersistentFlags().StringP("dir", "D", "problems", "")
-	rootCmd.PersistentFlags().BoolP("dry-run", "d", false, "do not make any changes to problem files")
+	rootCmd.PersistentFlags().BoolP("dry_run", "d", false, "do not make any changes to problem files")
 	rootCmd.PersistentFlags().CountP("verbose", "v", "increase verbosity level. Use -v for troubleshooting, -vv for advanced debugging")
 	err := viper.BindPFlags(rootCmd.PersistentFlags())
 	if err != nil {
@@ -56,14 +86,12 @@ func main() {
 		Use:   "download",
 		Short: "Download problems from leetcode",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
+			viper.Unmarshal(&options)
 			download(args)
 		},
 	}
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
-	err = viper.BindPFlags(cmdDownload.Flags())
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to bind flags. This is a bug")
-	}
 
 	cmdList := &cobra.Command{
 		Use:   "list",
@@ -80,8 +108,8 @@ func main() {
 		Short: "Prompt for a solution",
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
-			viper.BindPFlag("model", cmd.PersistentFlags().Lookup("model"))
-			prompt(args)
+			viper.Unmarshal(&options)
+			prompt(args, cmd.Flag("model").Value.String())
 		},
 	}
 	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
@@ -93,6 +121,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
 			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
+			viper.Unmarshal(&options)
 			submit(args, cmd.Flag("model").Value.String())
 		},
 	}
@@ -104,6 +133,8 @@ func main() {
 		Use:   "report",
 		Short: "Generate a report",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("output", cmd.Flags().Lookup("output"))
+			viper.Unmarshal(&options)
 			report(args)
 		},
 	}
@@ -120,6 +151,6 @@ func main() {
 	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdReport, cmdFix)
 
 	if err := rootCmd.Execute(); err != nil {
-        panic(err)
-    }
+		panic(err)
+	}
 }

@@ -18,13 +18,12 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
-	"github.com/spf13/viper"
 	"google.golang.org/api/option"
 )
 
 var promptThrottler throttler.Throttler
 
-func prompt(args []string) {
+func prompt(args []string, modelName string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -33,7 +32,6 @@ func prompt(args []string) {
 
 	promptThrottler = throttler.NewSimpleThrottler(1*time.Second, 30*time.Second)
 
-	modelName := viper.GetString("model")
 	if modelName == "" {
 		log.Error().Msg("Model is not set")
 		return
@@ -76,14 +74,14 @@ outerLoop:
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		if _, ok := problem.Solutions[modelName]; ok && !viper.GetBool("force") {
+		if _, ok := problem.Solutions[modelName]; ok && !options.Force {
 			skippedCnt += 1
 			log.Info().Msgf("Already solved at %s", problem.Solutions[modelName].SolvedAt.String())
 			continue
 		}
 
 		var solution *Solution
-		maxReties := viper.GetInt("retries")
+		maxReties := options.Retries
 		i := 0
 		promptThrottler.Ready()
 		for promptThrottler.Wait() && i < maxReties {
@@ -139,7 +137,7 @@ outerLoop:
 }
 
 func promptOpenAi(q Question, modelName string, params string) (*Solution, error) {
-	client := openai.NewClient(viper.GetString("chatgpt_api_key"))
+	client := openai.NewClient(options.ChatgptApiKey)
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
@@ -185,7 +183,7 @@ func promptOpenAi(q Question, modelName string, params string) (*Solution, error
 }
 
 func promptDeepseek(q Question, modelName string, params string) (*Solution, error) {
-	client := deepseek.NewClient(viper.GetString("deepseek_api_key"))
+	client := deepseek.NewClient(options.DeepseekApiKey)
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
@@ -232,7 +230,7 @@ func promptDeepseek(q Question, modelName string, params string) (*Solution, err
 
 // very dirty
 func promptXai(q Question, modelName string, params string) (*Solution, error) {
-	config := openai.DefaultConfig(viper.GetString("xai_api_key"))
+	config := openai.DefaultConfig(options.XaiApiKey)
 	config.BaseURL = "https://api.x.ai/v1"
 	client := openai.NewClientWithConfig(config)
 
@@ -310,11 +308,11 @@ func promptGoogle(q Question, modelName string, params string) (*Solution, error
 	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
-	projectID := viper.GetString("gemini_project_id")
-	region := viper.GetString("gemini_region")
+	projectID := options.GeminiProjectId
+	region := options.GeminiRegion
 
 	ctx := context.Background()
-	opts := option.WithCredentialsFile(viper.GetString("gemini_credentials_file"))
+	opts := option.WithCredentialsFile(options.GeminiCredentialsFile)
 	client, err := genai.NewClient(ctx, projectID, region, opts)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to create a client: %w", err))
@@ -355,7 +353,7 @@ func promptGoogle(q Question, modelName string, params string) (*Solution, error
 }
 
 func promptAnthropic(q Question, modelName string, params string) (*Solution, error) {
-	client := anthropic.NewClient(anthropic_option.WithAPIKey(viper.GetString("claude_api_key")))
+	client := anthropic.NewClient(anthropic_option.WithAPIKey(options.ClaudeApiKey))
 	lang, prompt, err := generatePrompt(q)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
@@ -452,7 +450,7 @@ func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 }
 
 func generatePrompt(q Question) (string, string, error) {
-	prompt := viper.GetString("prompt_template")
+	prompt := options.PromptTemplate
 	if prompt == "" {
 		return "", "", errors.New("prompt_template is not set")
 	}

@@ -6,7 +6,6 @@ import (
 	leetgptsolver "whisk/leetgptsolver/pkg"
 
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
 
 func report(args []string) {
@@ -16,7 +15,7 @@ func report(args []string) {
 		return
 	}
 
-	reportFilename := viper.GetString("output")
+	reportFilename := options.Output
 	if len(files) == 0 {
 		var err error
 		files, err = allFilesFromProblemsDir()
