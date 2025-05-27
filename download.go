@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"os/signal"
 	"path"
@@ -122,8 +122,12 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 				stats
 				likes
 				dislikes
+				freqBar
 				categoryTitle
+				sampleTestCase
+				exampleTestcases
 				topicTags {
+					id
 					name
 					slug
 				}
@@ -164,6 +168,14 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		colly.Async(true),
 	)
 	c.WithTransport(newTransport())
+	if !options.SkipPaid {
+		jar, ok := cookieJar().(*cookiejar.Jar)
+		if !ok {
+			log.Fatal().Msg("failed to use cookie jar. This is a bug")
+			return -1
+		}
+		c.SetCookieJar(jar)
+	}
 	err := c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
@@ -214,7 +226,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			log.Err(err).Msg("failed to download question")
 			return
 		}
-		log.Debug().Msgf("downloaded %s successfully", dstFile)
+		log.Info().Msgf("Problem %s downloaded successfully", dstFile)
 		downloadedCnt += 1
 	})
 	c.OnError(func(r *colly.Response, e error) {
@@ -227,11 +239,8 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 	})
 
-	hdr := http.Header{
-		"Content-Type": {"application/json"},
-	}
 	for _, qs := range slugs {
-		if qs.PaidOnly {
+		if options.SkipPaid && qs.PaidOnly {
 			skippedCnt += 1
 			continue
 		}
@@ -248,6 +257,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 		ctx := colly.NewContext()
 		ctx.Put("dstFile", dstFile)
+		hdr := newHeader()
 		err = c.Request(
 			"POST",
 			"https://leetcode.com/graphql",
