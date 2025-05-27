@@ -65,7 +65,7 @@ func prompt(args []string, modelName string) {
 	errorsCnt := 0
 outerLoop:
 	for i, file := range files {
-		log.Info().Msgf("[%d/%d] Prompting %s for solution for problem %s ...", i+1, len(files), modelName, file)
+		log.Info().Msgf("[%d/%d] Prompting %s for problem %s ...", i+1, len(files), modelName, file)
 
 		var problem Problem
 		err := problem.ReadProblem(file)
