@@ -21,6 +21,7 @@ var options struct {
 	Dir           string
 	DryRun        bool `mapstructure:"dry_run"`
 	Slugs         bool
+	SkipPaid      bool `mapstructure:"skip_paid"`
 	Model         string
 	Retries       int
 	CheckRetries  int `mapstructure:"check_retries"`
@@ -87,11 +88,13 @@ func main() {
 		Short: "Download problems from leetcode",
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
+			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
 			viper.Unmarshal(&options)
 			download(args)
 		},
 	}
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
+	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
 
 	cmdList := &cobra.Command{
 		Use:   "list",

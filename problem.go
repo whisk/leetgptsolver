@@ -29,18 +29,22 @@ type Question struct {
 	// structure left as is thats why tedious "Question.Data.Question"
 	Data struct {
 		Question struct {
-			FrontendId    string `json:"questionFrontendId"`
-			Id            string `json:"questionId"`
-			Content       string
-			Difficulty    string
-			Title         string
-			TitleSlug     string
-			IsPaidOnly    bool
-			Stats         string
-			Likes         int
-			Dislikes      int
-			CategoryTitle string
-			TopicTags     []struct {
+			FrontendId       string `json:"questionFrontendId"`
+			Id               string `json:"questionId"`
+			Content          string
+			SampleTestCase   string
+			ExampleTestcases string
+			Difficulty       string
+			Title            string
+			TitleSlug        string
+			IsPaidOnly       bool
+			Stats            string
+			Likes            int
+			Dislikes         int
+			FreqBar          float64
+			CategoryTitle    string
+			TopicTags        []struct {
+				Id   string
 				Name string
 				Slug string
 			}
