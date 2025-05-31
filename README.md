@@ -8,6 +8,14 @@ Research to identify the capabilities of LLMs in solving coding interview proble
 ](https://hackernoon.com/testing-llms-on-solving-leetcode-problems-in-2025)
 * [Testing LLMs on Solving Leetcode Problems](https://hackernoon.com/testing-llms-on-solving-leetcode-problems) (2024)
 
+## Usage
+
+To interact with leetcode.com, please sign up and sign in with your Leetcode account using the Firefox browser.
+
+## Dataset
+
+The dataset used for this research is available on Hugging Face: https://huggingface.co/datasets/whiskwhite/leetcode-complete
+
 ## TODO
 
 - [x] Make command-line help self-explanatory
@@ -19,10 +27,6 @@ Research to identify the capabilities of LLMs in solving coding interview proble
 - [x] Add jq filtering for reporting
 - [ ] Replace JSON files with a local database for questions
 - [ ] Implement a real rate limiter instead of SimpleThrottler
-
-## Usage
-
-To interact with leetcode.com, please sign up and sign in with your Leetcode account using the Firefox browser.
 
 ## Misc
 
