@@ -26,7 +26,6 @@ var options struct {
 	Retries       int
 	CheckRetries  int `mapstructure:"check_retries"`
 	SubmitRetries int `mapstructure:"submit_retries"`
-	Output        string
 
 	// options below usually set in config file
 	ChatgptApiKey         string `mapstructure:"chatgpt_api_key"`
@@ -100,11 +99,12 @@ func main() {
 		Use:   "list",
 		Short: "List problems info using jq",
 		Run: func(cmd *cobra.Command, args []string) {
-			list(args, cmd.Flag("where").Value.String(), cmd.Flag("print").Value.String())
+			list(args, cmd.Flag("where").Value.String(), cmd.Flag("print").Value.String(), cmd.Flag("header").Value.String() == "true")
 		},
 	}
 	cmdList.Flags().StringP("where", "w", "", "filter problems by where clause (using jq)")
 	cmdList.Flags().StringP("print", "p", ".", "print fields (using jq)")
+	cmdList.Flags().BoolP("header", "H", true, "print header row")
 
 	cmdPrompt := &cobra.Command{
 		Use:   "prompt",
@@ -132,17 +132,6 @@ func main() {
 	cmdSubmit.Flags().Int("check_retries", 5, "number of retries")
 	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
 
-	cmdReport := &cobra.Command{
-		Use:   "report",
-		Short: "Generate a report",
-		Run: func(cmd *cobra.Command, args []string) {
-			viper.BindPFlag("output", cmd.Flags().Lookup("output"))
-			viper.Unmarshal(&options)
-			report(args)
-		},
-	}
-	cmdReport.Flags().StringP("output", "o", "report.tsv", "")
-
 	cmdFix := &cobra.Command{
 		Use:   "fix",
 		Short: "Fix problems",
@@ -151,7 +140,7 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdReport, cmdFix)
+	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdFix)
 
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
