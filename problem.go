@@ -170,68 +170,6 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	return nil
 }
 
-func ProblemTsvHeader(models []string) []byte {
-	columns := []string{
-		"Id",
-		"Title",
-		"Url",
-		"Path",
-		"IsPaidOnly",
-		"Difficulty",
-		"Likes",
-		"Dislikes",
-		"ContentFeatures",
-		"SnippetFeatures",
-		"acRate",
-	}
-	for _, m := range models {
-		columns = append(columns, m+" Solved At", m+" Submitted At", m+" Result")
-	}
-	var buf bytes.Buffer
-	for _, c := range columns {
-		buf.WriteString(c)
-		buf.WriteString("\t")
-	}
-	buf.WriteString("\n")
-	return buf.Bytes()
-}
-
-func (p *Problem) ProblemToTsv(models, languages []string) []byte {
-	fields := []string{
-		p.Question.Data.Question.FrontendId,
-		p.Question.Data.Question.Title,
-		p.Url(),
-		p.Path,
-		fmt.Sprintf("%v", p.Question.Data.Question.IsPaidOnly),
-		p.Question.Data.Question.Difficulty,
-		fmt.Sprintf("%d", p.Question.Data.Question.Likes),
-		fmt.Sprintf("%d", p.Question.Data.Question.Dislikes),
-		p.Question.ContentFeatures,
-		p.Question.SnippetFeatures(languages),
-		p.Question.AcRate,
-	}
-	for _, m := range models {
-		if solv, ok := p.Solutions[m]; ok {
-			fields = append(fields, humanizeTime(solv.SolvedAt))
-		} else {
-			fields = append(fields, "")
-		}
-		if subm, ok := p.Submissions[m]; ok {
-			fields = append(fields, humanizeTime(subm.SubmittedAt), subm.CheckResponse.StatusMsg)
-		} else {
-			fields = append(fields, "", "")
-		}
-	}
-
-	var buf bytes.Buffer
-	for _, f := range fields {
-		buf.WriteString(f)
-		buf.WriteString("\t")
-	}
-	buf.WriteString("\n")
-	return buf.Bytes()
-}
-
 func (p Problem) Url() string {
 	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug + "/"
 }

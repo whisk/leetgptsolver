@@ -11,7 +11,7 @@ import (
 
 const SEPARATOR = "\t"
 
-func list(args []string, whereExpr string, printExpr string) {
+func list(args []string, whereExpr string, printExpr string, printHeader bool) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get files")
@@ -34,9 +34,12 @@ func list(args []string, whereExpr string, printExpr string) {
 		log.Fatal().Err(err).Msg("failed to parse print query")
 		return
 	}
-	var s strings.Builder
-	queryToHeader(printQuery, &s)
-	fmt.Println(s.String())
+
+	if printHeader {
+		var s strings.Builder
+		queryToHeaderRow(printQuery, &s)
+		fmt.Println(s.String())
+	}
 
 outerLoop:
 	for _, file := range files {
@@ -78,6 +81,7 @@ outerLoop:
 		if !match {
 			continue
 		}
+
 		iterPrint := printQuery.Run(pStruct)
 		for {
 			v, ok := iterPrint.Next()
@@ -91,7 +95,18 @@ outerLoop:
 				log.Err(err).Msg("failed to print")
 				continue outerLoop
 			}
-			fmt.Printf("%v" + SEPARATOR, v)
+			if jsonVal, ok := v.(map[string]any); ok {
+				// seems like a json output, print it as a json on a single line
+				jsonBytes, err := json.Marshal(jsonVal)
+				if err != nil {
+					log.Err(err).Msg("failed to marshal json")
+					continue outerLoop
+				}
+				fmt.Print(string(jsonBytes))
+			} else {
+				// print the value as is
+				fmt.Printf("%v"+SEPARATOR, v)
+			}
 		}
 		fmt.Println()
 	}
@@ -115,11 +130,11 @@ func problemToMap(p Problem) (map[string]any, error) {
 
 // convert the "print" query into a format suitable for a header row, allowing for nicely named columns
 // e.g., "a,b,c" -> "a b c"
-func queryToHeader(e *gojq.Query, s *strings.Builder) {
+func queryToHeaderRow(e *gojq.Query, s *strings.Builder) {
 	if e.Term != nil {
 		s.WriteString(e.Term.String())
 	} else if e.Right != nil {
-		queryToHeader(e.Left, s)
+		queryToHeaderRow(e.Left, s)
 		if e.Op == gojq.OpComma {
 			s.WriteString(SEPARATOR)
 		} else {
@@ -127,6 +142,6 @@ func queryToHeader(e *gojq.Query, s *strings.Builder) {
 			s.WriteString(e.Op.String())
 			s.WriteByte(' ')
 		}
-		queryToHeader(e.Right, s)
+		queryToHeaderRow(e.Right, s)
 	}
 }
