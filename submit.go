@@ -10,7 +10,6 @@ import (
 	"whisk/leetgptsolver/pkg/throttler"
 
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
 
 type InvalidCodeError struct {
@@ -24,7 +23,7 @@ func NewInvalidCodeError(err error) error {
 var leetcodeThrottler throttler.Throttler
 
 func submit(args []string, modelName string) {
-	if viper.GetBool("dry-run") {
+	if options.DryRun {
 		log.Warn().Msg("Running in dry-run mode. No changes will be made to problem files")
 	}
 	files, err := filenamesFromArgs(args)
@@ -63,7 +62,7 @@ outerLoop:
 			continue
 		}
 		subm, ok := problem.Submissions[modelName]
-		if !viper.GetBool("force") && (ok && subm.CheckResponse.Finished) {
+		if !options.Force && (ok && subm.CheckResponse.Finished) {
 			log.Info().Msgf("%s's solution is already submitted", modelName)
 			skippedCnt += 1
 			continue
@@ -82,7 +81,7 @@ outerLoop:
 
 		log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
 		problem.Submissions[modelName] = *submission
-		if !viper.GetBool("dry-run") {
+		if !options.DryRun {
 			err = problem.SaveProblemInto(file)
 			if err != nil {
 				log.Err(err).Msg("Failed to save the submission result")
@@ -102,7 +101,7 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 	subReq := SubmitRequest{
 		Lang:       s.Lang,
 		QuestionId: q.Data.Question.Id,
-		TypedCode:  codeToSubmit(s, false),
+		TypedCode:  codeToSubmit(s, true),
 	}
 
 	submissionId, err := submitCode(SubmitUrl(q), subReq)
@@ -147,7 +146,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	}
 	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
-	maxRetries := viper.GetInt("submit_retries")
+	maxRetries := options.SubmitRetries
 	i := 0
 	leetcodeThrottler.Ready()
 	for leetcodeThrottler.Wait() && i < maxRetries {
@@ -207,7 +206,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 func checkStatus(url string) (*CheckResponse, error) {
 	var checkResp *CheckResponse
-	maxRetries := viper.GetInt("check_retries")
+	maxRetries := options.CheckRetries
 	i := 0
 	leetcodeThrottler.Ready()
 	for leetcodeThrottler.Wait() && i < maxRetries {

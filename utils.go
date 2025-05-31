@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 type NonRetriableError struct {
@@ -55,14 +53,14 @@ func fileExists(name string) (bool, error) {
 
 // allFilesFromProblemsDir retrieves all JSON files from the problems directory.
 func allFilesFromProblemsDir() ([]string, error) {
-	fsys := os.DirFS(viper.GetString("dir"))
+	fsys := os.DirFS(options.Dir)
 	files, err := fs.Glob(fsys, "*.json")
 	if err != nil {
 		return nil, err
 	}
 
 	for i := range files {
-		files[i] = path.Join(viper.GetString("dir"), files[i])
+		files[i] = path.Join(options.Dir, files[i])
 	}
 	return files, nil
 }

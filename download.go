@@ -16,7 +16,6 @@ import (
 
 	"github.com/gocolly/colly"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
 
 // used only to scrap question content
@@ -45,7 +44,7 @@ func download(args []string) {
 	log.Info().Msgf("got %d question slugs", len(availableSlugs))
 
 	// just print slugs
-	if viper.GetBool("slugs") {
+	if options.Slugs {
 		printQuestions(availableSlugs)
 		return
 	}
@@ -74,7 +73,7 @@ func download(args []string) {
 			}
 		}
 	}
-	downloadQuestions(slugsToDownload, viper.GetString("dir"))
+	downloadQuestions(slugsToDownload, options.Dir)
 }
 
 func getAvailableSlugs() ([]QuestionSlug, error) {
@@ -238,7 +237,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		}
 		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
 		ok, _ := fileExists(dstFile)
-		if ok && !viper.GetBool("force") {
+		if ok && !options.Force {
 			log.Debug().Msgf("file %s already exists", dstFile)
 			alreadyDownloadedCnt += 1
 			continue

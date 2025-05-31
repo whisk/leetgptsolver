@@ -12,7 +12,7 @@ Research to identify the capabilities of LLMs in solving coding interview proble
 
 - [x] Make command-line help self-explanatory
 - [x] Make logging/output more informative, especially when downloading questions
-- [ ] Add structure to the config and options
+- [x] Add structure to the config and options
 - [ ] Add version information
 - [ ] Detect a question creation time
 - [ ] Implement a simple custom downloading queue
