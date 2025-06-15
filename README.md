@@ -22,10 +22,11 @@ The dataset used for this research is available on Hugging Face: https://hugging
 - [x] Make logging/output more informative, especially when downloading questions
 - [x] Add structure to the config and options
 - [ ] Add version information
+- [ ] Add authorization check before downloading premium problems
 - [ ] Detect a question creation time
 - [ ] Implement a simple custom downloading queue
 - [x] Add jq filtering for reporting
-- [ ] Replace JSON files with a local database for questions
+- [ ] Implement locks for problem files
 - [ ] Implement a real rate limiter instead of SimpleThrottler
 
 ## Misc
