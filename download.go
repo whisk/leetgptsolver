@@ -73,7 +73,7 @@ func download(args []string) {
 			}
 		}
 	}
-	downloadQuestions(slugsToDownload, options.Dir)
+	downloadQuestions(slugsToDownload, options.Dir, options.Overwrite)
 }
 
 func getAvailableSlugs() ([]QuestionSlug, error) {
@@ -153,7 +153,7 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 }
 
 // for some reason first couple of problems may fail to bypass cloudflare
-func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
+func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int {
 	log.Debug().Msgf("queueing %d questions...", len(slugs))
 
 	downloadedCnt := 0
@@ -204,12 +204,12 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 		log.Trace().Msg(string(r.Body))
 
 		var problem Problem
-		problem.Question.DownloadedAt = time.Now()
 		err := json.Unmarshal(r.Body, &problem.Question)
 		if err != nil {
 			log.Err(err).Msg("failed to unmarshall question from json")
 			return
 		}
+		problem.Question.DownloadedAt = time.Now()
 
 		dstFile := r.Ctx.Get("dstFile")
 		if dstFile == "" {
@@ -219,13 +219,36 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 
 		// we don't want interruptions while saving the data
 		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-		err = problem.SaveProblemInto(dstFile)
-		signal.Reset()
+		defer signal.Reset()
 
+		fileAlreadyExists, err := fileExists(dstFile)
 		if err != nil {
-			log.Err(err).Msg("failed to download question")
+			log.Fatal().Err(err).Msgf("failed to check if file %s exists", dstFile)
 			return
 		}
+		if !overwrite && fileAlreadyExists {
+			log.Debug().Msgf("updating %s...", dstFile)
+			var existingProblem Problem
+			err := existingProblem.ReadProblem(dstFile)
+			if err != nil {
+				log.Err(err).Msgf("failed to read existing problem from %s", dstFile)
+				return
+			}
+			existingProblem.Question = problem.Question
+			err = existingProblem.SaveProblemInto(dstFile)
+			if err != nil {
+				log.Err(err).Msg("failed to update existing question")
+				return
+			}
+		} else {
+			err = problem.SaveProblemInto(dstFile)
+			if err != nil {
+				log.Err(err).Msg("failed to save downloaded question")
+				return
+			}
+		}
+		signal.Reset()
+
 		log.Info().Msgf("Problem %s downloaded successfully", dstFile)
 		downloadedCnt += 1
 	})
@@ -245,11 +268,15 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string) int {
 			continue
 		}
 		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
-		ok, _ := fileExists(dstFile)
-		if ok && !options.Force {
-			log.Debug().Msgf("file %s already exists", dstFile)
+		fileAlreadyExists, _ := fileExists(dstFile)
+		if fileAlreadyExists {
 			alreadyDownloadedCnt += 1
-			continue
+			if options.Force {
+				log.Debug().Msgf("file %s already exists, forcefully downloading...", dstFile)
+			} else {
+				log.Debug().Msgf("file %s already exists", dstFile)
+				continue
+			}
 		}
 		queryBytes, err := makeQuestionQuery(qs)
 		if err != nil {

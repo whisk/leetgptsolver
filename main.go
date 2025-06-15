@@ -22,6 +22,7 @@ var options struct {
 	DryRun        bool `mapstructure:"dry_run"`
 	Slugs         bool
 	SkipPaid      bool `mapstructure:"skip_paid"`
+	Overwrite     bool
 	Model         string
 	Retries       int
 	CheckRetries  int `mapstructure:"check_retries"`
@@ -88,12 +89,14 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
+			viper.BindPFlag("overwrite", cmd.Flags().Lookup("overwrite"))
 			viper.Unmarshal(&options)
 			download(args)
 		},
 	}
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
 	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
+	cmdDownload.Flags().BoolP("overwrite", "o", false, "overwrite existing problems")
 
 	cmdList := &cobra.Command{
 		Use:   "list",
