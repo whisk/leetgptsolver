@@ -2,11 +2,12 @@
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.1.1
+# Format version: 0.1.2
 # Please avoid removing existing fields or changing their types!
 p=$(cat <<-END
     {
         url: .Question.Url,
+        title_slug: .Question.Data.Question.TitleSlug,
         id: .Question.Data.Question.questionId,
         frontend_id: .Question.Data.Question.questionFrontendId,
         title: .Question.Data.Question.Title,
