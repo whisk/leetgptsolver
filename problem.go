@@ -59,9 +59,12 @@ type Question struct {
 	}
 	// metadata. It is always recalculated on read
 	DownloadedAt        time.Time
+	// string as parsed from stats
 	AcRate              string
 	TotalSubmissions    int
 	TotalAccepted       int
+	// calculated from total submissions and accepted
+	AcceptanceRate	    float64
 	ContentFeatures     string
 	CodeSnippetFeatures map[string]string
 	Url                 string
@@ -245,6 +248,9 @@ func scanAcRate(statsStr string, q *Question) error {
 		return errors.New("totalAcceptedRaw is not an string")
 	}
 	q.TotalAccepted = int(totalAccepted)
+	if totalSubmissions > 0 {
+		q.AcceptanceRate = totalAccepted / totalSubmissions
+	}
 
 	return nil
 }

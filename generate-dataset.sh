@@ -2,7 +2,7 @@
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.1.2
+# Format version: 0.1.3
 # Please avoid removing existing fields or changing their types!
 p=$(cat <<-END
     {
@@ -22,6 +22,7 @@ p=$(cat <<-END
         topic_tags: .Question.Data.Question.TopicTags | map(.Name),
         total_submissions: .Question.TotalSubmissions,
         total_accepted: .Question.TotalAccepted,
+        acceptance_rate: .Question.AcceptanceRate,
     }
 END
 )
