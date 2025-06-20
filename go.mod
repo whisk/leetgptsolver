@@ -6,11 +6,11 @@ require (
 	cloud.google.com/go/vertexai v0.13.3
 	github.com/DaRealFreak/cloudflare-bp-go v1.0.4
 	github.com/EDDYCJY/fake-useragent v0.2.0
+	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
 	github.com/browserutils/kooky v0.2.2
 	github.com/cohesion-org/deepseek-go v1.2.7
 	github.com/gocolly/colly v1.2.0
 	github.com/itchyny/gojq v0.12.17
-	github.com/liushuangls/go-anthropic v1.6.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/rs/zerolog v1.33.0
 	github.com/sashabaranov/go-openai v1.38.1
@@ -32,7 +32,6 @@ require (
 	github.com/antchfx/htmlquery v1.3.4 // indirect
 	github.com/antchfx/xmlquery v1.4.4 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
@@ -81,13 +80,13 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac // indirect
-	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sync v0.15.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20250212204824-5a70512c5d8b // indirect
