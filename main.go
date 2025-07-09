@@ -21,6 +21,7 @@ var options struct {
 	Dir           string
 	DryRun        bool `mapstructure:"dry_run"`
 	Slugs         bool
+	CreationDate  bool `mapstructure:"creation_date"`
 	SkipPaid      bool `mapstructure:"skip_paid"`
 	Overwrite     bool
 	Model         string
@@ -89,6 +90,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
+			viper.BindPFlag("creation_date", cmd.Flags().Lookup("creation_date"))
 			viper.BindPFlag("overwrite", cmd.Flags().Lookup("overwrite"))
 			viper.Unmarshal(&options)
 			download(args)
@@ -96,6 +98,7 @@ func main() {
 	}
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
 	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
+	cmdDownload.Flags().BoolP("creation_date", "C", true, "determine approximate creation date for each problem based on user-generated content")
 	cmdDownload.Flags().BoolP("overwrite", "o", false, "overwrite existing problems")
 
 	cmdList := &cobra.Command{

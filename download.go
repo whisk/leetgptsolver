@@ -226,6 +226,22 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int 
 			log.Fatal().Err(err).Msgf("failed to check if file %s exists", dstFile)
 			return
 		}
+
+		if options.CreationDate {
+			approxCreatedAt, err := LoadFirstUgcContentTime(problem.Question.Data.Question.TitleSlug)
+			if err != nil {
+				log.Err(err).Msgf("failed to determine approximate creation date for %s", problem.Question.Data.Question.TitleSlug)
+			} else {
+				log.Info().Msgf("approximate creation date for %s is %s", problem.Question.Data.Question.TitleSlug, approxCreatedAt)
+				problem.Question.CreatedAtApprox = time.Date(
+					approxCreatedAt.Year(),
+					time.Month(approxCreatedAt.Month()),
+					approxCreatedAt.Day(),
+					0, 0, 0, 0, time.UTC,
+				)
+			}
+		}
+
 		if !overwrite && fileAlreadyExists {
 			log.Debug().Msgf("updating %s...", dstFile)
 			var existingProblem Problem

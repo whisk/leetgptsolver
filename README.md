@@ -23,14 +23,12 @@ The dataset used for this research is available on Hugging Face: https://hugging
 - [x] Add structure to the config and options
 - [ ] Add version information
 - [ ] Add authorization check before downloading premium problems
-- [ ] Detect a question creation time
+- [x] Detect a question creation time
 - [ ] Implement a simple custom downloading queue
 - [x] Add jq filtering for reporting
 - [ ] Implement locks for problem files
 - [ ] Implement a real rate limiter instead of SimpleThrottler
 
-## Misc
+## License
 
-"2603. Collect Coins in a Tree" - **probably** the last from March 2023.
-
-"2663. Lexicographically Smallest Beautiful String" - **probably** the first from May 2023
+MIT
