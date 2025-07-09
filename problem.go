@@ -57,14 +57,17 @@ type Question struct {
 			CompanyTagStats string
 		}
 	}
+	// data popupated on download
+	DownloadedAt    time.Time
+	CreatedAtApprox time.Time
+
 	// metadata. It is always recalculated on read
-	DownloadedAt        time.Time
 	// string as parsed from stats
-	AcRate              string
-	TotalSubmissions    int
-	TotalAccepted       int
+	AcRate           string
+	TotalSubmissions int
+	TotalAccepted    int
 	// calculated from total submissions and accepted
-	AcceptanceRate	    float64
+	AcceptanceRate      float64
 	ContentFeatures     string
 	CodeSnippetFeatures map[string]string
 	Url                 string
