@@ -2,7 +2,7 @@
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.1.3
+# Format version: 0.2.0
 # Please avoid removing existing fields or changing their types!
 p=$(cat <<-END
     {
@@ -23,6 +23,7 @@ p=$(cat <<-END
         total_submissions: .Question.TotalSubmissions,
         total_accepted: .Question.TotalAccepted,
         acceptance_rate: .Question.AcceptanceRate,
+        created_at_approx: if .Question.CreatedAtApprox == "0001-01-01T00:00:00Z" then null else .Question.CreatedAtApprox end,
     }
 END
 )
