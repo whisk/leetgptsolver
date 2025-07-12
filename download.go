@@ -303,7 +303,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int 
 		hdr := newHeader()
 		err = c.Request(
 			"POST",
-			"https://leetcode.com/graphql",
+			leetcodeGraphqlUrl.String(),
 			bytes.NewBuffer(queryBytes),
 			ctx,
 			hdr,
