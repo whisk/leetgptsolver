@@ -61,6 +61,7 @@ type QuestionDiscussCommentsResp struct {
 
 var cookieJarCache *cookiejar.Jar
 var leetcodeUrl *url.URL
+var leetcodeGraphqlUrl *url.URL
 
 func init() {
 	u, err := url.Parse("https://leetcode.com/")
@@ -68,6 +69,11 @@ func init() {
 		panic(fmt.Sprintf("failed to parse leetcode url: %v. This is a bug", err))
 	}
 	leetcodeUrl = u
+	leetcodeGraphqlUrl = &url.URL{
+		Scheme: u.Scheme,
+		Host:   u.Host,
+		Path:   "/graphql",
+	}
 }
 
 func makeNiceReferer(urlStr string) (string, error) {
@@ -280,7 +286,7 @@ func LoadQuestionDiscussComments(slug string, first, pageNo int) (QuestionDiscus
 	if err != nil {
 		return resp, fmt.Errorf("failed to create query to get discussion topic: %w", err)
 	}
-	respBody, _, err := makeAuthorizedHttpRequest("POST", "https://leetcode.com/graphql", bytes.NewReader(queryBytes))
+	respBody, _, err := makeAuthorizedHttpRequest("POST", leetcodeGraphqlUrl.String(), bytes.NewReader(queryBytes))
 	if err != nil {
 		return resp, fmt.Errorf("failed to get discussion topic: %w", err)
 	}
@@ -300,7 +306,7 @@ func LoadQuestionDiscussComments(slug string, first, pageNo int) (QuestionDiscus
 	if err != nil {
 		return resp, fmt.Errorf("failed to create query to get discussion comments: %w", err)
 	}
-	respBody, _, err = makeAuthorizedHttpRequest("POST", "https://leetcode.com/graphql", bytes.NewReader(queryBytes))
+	respBody, _, err = makeAuthorizedHttpRequest("POST", leetcodeGraphqlUrl.String(), bytes.NewReader(queryBytes))
 	if err != nil {
 		return resp, fmt.Errorf("failed to get discussion comments: %w", err)
 	}
@@ -413,7 +419,7 @@ func LoadSolutions(slug string, perPage, skip int) (UgcArticleSolutionArticles, 
 		return resp, fmt.Errorf("failed to create query to get ugc solutions: %w", err)
 	}
 	log.Trace().Msgf("query to get ugc solutions: %s", string(queryBytes))
-	respBody, _, err := makeAuthorizedHttpRequest("POST", "https://leetcode.com/graphql", bytes.NewReader(queryBytes))
+	respBody, _, err := makeAuthorizedHttpRequest("POST", leetcodeGraphqlUrl.String(), bytes.NewReader(queryBytes))
 	if err != nil {
 		return resp, fmt.Errorf("failed to get solutions: %w", err)
 	}
