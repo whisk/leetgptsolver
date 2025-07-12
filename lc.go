@@ -436,7 +436,7 @@ func LoadFirstUgcContentTime(slug string) (time.Time, error) {
 	}
 	if comments.Data.TopicComments.TotalNum > perPage {
 		log.Debug().Msgf("more than %d comments found for %s, loading the oldest comments...", perPage, slug)
-		comments, err = LoadQuestionDiscussComments(slug, perPage, comments.Data.TopicComments.TotalNum/perPage+1)
+		comments, err = LoadQuestionDiscussComments(slug, perPage, (comments.Data.TopicComments.TotalNum-1)/perPage+1)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("failed to load the oldest comments: %w", err)
 		}
