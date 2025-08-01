@@ -22,7 +22,7 @@ The dataset used for this research is available on Hugging Face: https://hugging
 - [x] Make logging/output more informative, especially when downloading questions
 - [x] Add structure to the config and options
 - [ ] Add version information
-- [ ] Add authorization check before downloading premium problems
+- [x] Add authorization check before downloading problems
 - [x] Detect a question creation time
 - [ ] Implement a simple custom downloading queue
 - [x] Add jq filtering for reporting
