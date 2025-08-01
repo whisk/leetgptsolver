@@ -73,7 +73,7 @@ func download(args []string) {
 			}
 		}
 	}
-	downloadQuestions(slugsToDownload, options.Dir, options.Overwrite)
+	downloadQuestions(slugsToDownload)
 }
 
 func getAvailableSlugs() ([]QuestionSlug, error) {
@@ -153,7 +153,22 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 }
 
 // for some reason first couple of problems may fail to bypass cloudflare
-func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int {
+func downloadQuestions(slugs []QuestionSlug) int {
+	// Check if username is not empty before downloading, unless SkipAuthCheck is set
+	var err error
+	if !options.SkipAuthCheck {
+		userStatus, err := LoadUserStatus()
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to get user status from leetcode")
+			return -1
+		}
+		log.Debug().Msgf("leetcode username: %s", userStatus.Username)
+		if userStatus.Username == "" {
+			log.Fatal().Msg("leetcode username is empty. Please ensure you are signed in Firefox before downloading questions, or use -A to allow anonymous download.")
+			return -1
+		}
+	}
+
 	log.Debug().Msgf("queueing %d questions...", len(slugs))
 
 	downloadedCnt := 0
@@ -176,7 +191,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int 
 		}
 		c.SetCookieJar(jar)
 	}
-	err := c.Limit(&colly.LimitRule{
+	err = c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 2,
 		RandomDelay: 15 * time.Second,
@@ -242,7 +257,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int 
 			}
 		}
 
-		if !overwrite && fileAlreadyExists {
+		if !options.Overwrite && fileAlreadyExists {
 			log.Debug().Msgf("updating %s...", dstFile)
 			var existingProblem Problem
 			err := existingProblem.ReadProblem(dstFile)
@@ -283,7 +298,7 @@ func downloadQuestions(slugs []QuestionSlug, dstDir string, overwrite bool) int 
 			skippedCnt += 1
 			continue
 		}
-		dstFile := path.Join(dstDir, qs.Stat.TitleSlug+".json")
+		dstFile := path.Join(options.Dir, qs.Stat.TitleSlug+".json")
 		fileAlreadyExists, _ := fileExists(dstFile)
 		if fileAlreadyExists {
 			alreadyDownloadedCnt += 1

@@ -251,9 +251,9 @@ func QuestionDiscussCommentsQuery(topicId, first, pageNo int) ([]byte, error) {
 		{
 			topicComments(
 				topicId: $topicId
-    			orderBy: $orderBy
-    			pageNo: $pageNo
-    			numPerPage: $numPerPage
+				orderBy: $orderBy
+				pageNo: $pageNo
+				numPerPage: $numPerPage
 			) {
 				data {
 					id
@@ -335,7 +335,7 @@ func UgcArticlesSolutionQuery(slug string, first, skip int) ([]byte, error) {
 				isMine: $isMine
 			)
 			{
-			    totalNum
+				totalNum
 				pageInfo {
 					hasNextPage
 				}
@@ -494,4 +494,44 @@ func LoadFirstUgcContentTime(slug string) (time.Time, error) {
 	}
 
 	return firstSolutionTime, nil
+}
+
+// UserStatus contains only the username from Leetcode globalData API
+type UserStatus struct {
+	Username string
+}
+
+
+// GlobalDataUserStatusQuery returns the GraphQL query bytes for globalData userStatus
+func GlobalDataUserStatusQuery() ([]byte, error) {
+	query := map[string]interface{}{
+		"operationName": "globalData",
+		"variables": map[string]interface{}{},
+		"query": `query globalData { userStatus { username } }`,
+	}
+	return json.Marshal(query)
+}
+
+// LoadUserStatus makes the request and returns the UserStatus struct
+func LoadUserStatus() (UserStatus, error) {
+	var status UserStatus
+	queryBytes, err := GlobalDataUserStatusQuery()
+	if err != nil {
+		return status, fmt.Errorf("failed marshalling globalData GraphQL: %w", err)
+	}
+	respBody, _, err := makeAuthorizedHttpRequest("POST", leetcodeGraphqlUrl.String(), bytes.NewReader(queryBytes))
+	if err != nil {
+		return status, fmt.Errorf("failed to get globalData: %w", err)
+	}
+	// Unmarshal only the username field
+	var resp struct {
+		Data struct {
+			UserStatus `json:"userStatus"`
+		}
+	}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return status, fmt.Errorf("failed to unmarshal globalData response: %w", err)
+	}
+	status.Username = resp.Data.UserStatus.Username
+	return status, nil
 }
