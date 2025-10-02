@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var PREFERRED_LANGUAGES = []string{"python3", "python"}
-
 var options struct {
 	// options below usually set by command line flags, but can also be set in config file
 	Force         bool
@@ -25,6 +23,7 @@ var options struct {
 	SkipPaid      bool `mapstructure:"skip_paid"`
 	SkipAuthCheck bool `mapstructure:"skip_auth_check"`
 	Overwrite     bool
+	      string
 	Model         string
 	Retries       int
 	CheckRetries  int `mapstructure:"check_retries"`
@@ -119,27 +118,31 @@ func main() {
 		Use:   "prompt",
 		Short: "Prompt for a solution",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
 			viper.Unmarshal(&options)
-			prompt(args, cmd.Flag("model").Value.String())
+			prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
 		},
 	}
-	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
+	cmdPrompt.PersistentFlags().StringP("language", "l", "python3", "programming language")
+	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
 	cmdPrompt.PersistentFlags().IntP("retries", "r", 2, "number of retries")
 
 	cmdSubmit := &cobra.Command{
 		Use:   "submit",
 		Short: "Submit a solution",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
 			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
 			viper.Unmarshal(&options)
-			submit(args, cmd.Flag("model").Value.String())
+			submit(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
 		},
 	}
+	cmdSubmit.PersistentFlags().StringP("language", "l", "python3", "programming language")
 	cmdSubmit.Flags().Int("submit_retries", 2, "number of retries")
 	cmdSubmit.Flags().Int("check_retries", 5, "number of retries")
-	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large language model family name to use")
+	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
 
 	cmdFix := &cobra.Command{
 		Use:   "fix",

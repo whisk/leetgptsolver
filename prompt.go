@@ -23,7 +23,7 @@ import (
 
 var promptThrottler throttler.Throttler
 
-func prompt(args []string, modelName string) {
+func prompt(args []string, lang, modelName string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -42,7 +42,7 @@ func prompt(args []string, modelName string) {
 		return
 	}
 
-	var prompter func(Question, string, string) (*Solution, error)
+	var prompter func(Question, string, string, string) (*Solution, error)
 	switch leetgptsolver.ModelFamily(modelId) {
 	case leetgptsolver.MODEL_FAMILY_OPENAI:
 		prompter = promptOpenAi
@@ -86,7 +86,7 @@ outerLoop:
 		promptThrottler.Ready()
 		for promptThrottler.Wait() && i < maxReties {
 			i += 1
-			solution, err = prompter(problem.Question, modelId, modelParams)
+			solution, err = prompter(problem.Question, lang, modelId, modelParams)
 			promptThrottler.Touch()
 			if err != nil {
 				log.Err(err).Msg("Failed to get a solution")
@@ -136,9 +136,9 @@ outerLoop:
 	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
-func promptOpenAi(q Question, modelName string, params string) (*Solution, error) {
+func promptOpenAi(q Question, lang, modelName, params string) (*Solution, error) {
 	client := openai.NewClient(options.ChatgptApiKey)
-	lang, prompt, err := generatePrompt(q)
+	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
@@ -182,9 +182,9 @@ func promptOpenAi(q Question, modelName string, params string) (*Solution, error
 	}, nil
 }
 
-func promptDeepseek(q Question, modelName string, params string) (*Solution, error) {
+func promptDeepseek(q Question, lang, modelName, params string) (*Solution, error) {
 	client := deepseek.NewClient(options.DeepseekApiKey)
-	lang, prompt, err := generatePrompt(q)
+	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
@@ -229,12 +229,12 @@ func promptDeepseek(q Question, modelName string, params string) (*Solution, err
 }
 
 // very dirty
-func promptXai(q Question, modelName string, params string) (*Solution, error) {
+func promptXai(q Question, lang, modelName, params string) (*Solution, error) {
 	config := openai.DefaultConfig(options.XaiApiKey)
 	config.BaseURL = "https://api.x.ai/v1"
 	client := openai.NewClientWithConfig(config)
 
-	lang, prompt, err := generatePrompt(q)
+	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
@@ -294,14 +294,14 @@ func promptXai(q Question, modelName string, params string) (*Solution, error) {
 	}, nil
 }
 
-func promptGoogle(q Question, modelName string, params string) (*Solution, error) {
+func promptGoogle(q Question, lang, modelName, params string) (*Solution, error) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Error().Msgf("recovered: %v", err)
 		}
 	}()
 
-	lang, prompt, err := generatePrompt(q)
+	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
@@ -352,9 +352,9 @@ func promptGoogle(q Question, modelName string, params string) (*Solution, error
 	}, nil
 }
 
-func promptAnthropic(q Question, modelName string, params string) (*Solution, error) {
+func promptAnthropic(q Question, lang, modelName, params string) (*Solution, error) {
 	client := anthropic.NewClient(anthropic_option.WithAPIKey(options.ClaudeApiKey))
-	lang, prompt, err := generatePrompt(q)
+	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
 	}
@@ -449,13 +449,14 @@ func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
 	return strings.Join(parts, ""), nil
 }
 
-func generatePrompt(q Question) (string, string, error) {
+func generatePrompt(q Question, lang string) (string, string, error) {
 	prompt := options.PromptTemplate
 	if prompt == "" {
 		return "", "", errors.New("prompt_template is not set")
 	}
 
-	selectedSnippet, selectedLang := q.FindSnippet(PREFERRED_LANGUAGES)
+	selectedLang := lang
+	selectedSnippet := q.FindSnippet(selectedLang)
 	if selectedSnippet == "" {
 		return "", "", fmt.Errorf("failed to find code snippet for %s", selectedLang)
 	}

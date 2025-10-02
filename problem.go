@@ -160,7 +160,7 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	p.Question.ContentFeatures = p.Question.parseContentFeatures()
 	p.Question.CodeSnippetFeatures = map[string]string{}
 	for _, lang := range p.Question.Data.Question.CodeSnippets {
-		p.Question.CodeSnippetFeatures[lang.LangSlug] = p.Question.SnippetFeatures([]string{lang.LangSlug})
+		p.Question.CodeSnippetFeatures[lang.LangSlug] = p.Question.SnippetFeatures(lang.LangSlug)
 	}
 	p.Question.Url = p.Url()
 
@@ -180,22 +180,16 @@ func (p Problem) Url() string {
 	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug + "/"
 }
 
-func (q Question) FindSnippet(languageSlugs []string) (string, string) {
+func (q Question) FindSnippet(lang string) string {
 	selectedSnippet := ""
-	selectedLang := ""
-outerLoop:
-	for _, langSlug := range languageSlugs {
-		for _, snippet := range q.Data.Question.CodeSnippets {
-			if snippet.LangSlug == langSlug {
-				selectedSnippet = snippet.Code
-				selectedLang = langSlug
-				break outerLoop
-			}
+	for _, snippet := range q.Data.Question.CodeSnippets {
+		if snippet.LangSlug == lang {
+			selectedSnippet = snippet.Code
+			break
 		}
-
 	}
 
-	return selectedSnippet, selectedLang
+	return selectedSnippet
 }
 
 func (q Question) parseContentFeatures() string {
@@ -212,8 +206,8 @@ func (q Question) parseContentFeatures() string {
 	return strings.Join(features, ",")
 }
 
-func (q Question) SnippetFeatures(languages []string) string {
-	snippet, _ := q.FindSnippet(languages)
+func (q Question) SnippetFeatures(lang string) string {
+	snippet := q.FindSnippet(lang)
 
 	// remove multiline python comments
 	snippet = regexp.MustCompile(`(?ms)""".+"""`).ReplaceAllString(snippet, "")
