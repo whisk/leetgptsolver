@@ -28,6 +28,7 @@ The dataset used for this research is available on Hugging Face: https://hugging
 - [x] Add jq filtering for reporting
 - [ ] Implement locks for problem files
 - [ ] Implement a real rate limiter instead of SimpleThrottler
+- [ ] Support selecting the programming language
 
 ## License
 

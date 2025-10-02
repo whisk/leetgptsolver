@@ -22,7 +22,7 @@ func NewInvalidCodeError(err error) error {
 
 var leetcodeThrottler throttler.Throttler
 
-func submit(args []string, modelName string) {
+func submit(args []string, lang, modelName string) {
 	if options.DryRun {
 		log.Warn().Msg("Running in dry-run mode. No changes will be made to problem files")
 	}
