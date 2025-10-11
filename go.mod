@@ -33,6 +33,7 @@ require (
 	github.com/antchfx/xmlquery v1.4.4 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/bits-and-blooms/bitset v1.22.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -40,6 +41,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sqlite/sqlite3 v0.0.0-20180313105335-53dd8e640ee7 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/gocolly/colly/v2 v2.2.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -58,6 +60,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/nlnwa/whatwg-url v0.6.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
@@ -93,7 +96,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250212204824-5a70512c5d8b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
 	google.golang.org/grpc v1.70.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

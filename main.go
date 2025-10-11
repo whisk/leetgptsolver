@@ -88,15 +88,17 @@ func main() {
 		Use:   "download",
 		Short: "Download problems from leetcode",
 		Run: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlag("category", cmd.Flags().Lookup("category"))
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
 			viper.BindPFlag("skip_auth_check", cmd.Flags().Lookup("skip_auth_check"))
 			viper.BindPFlag("creation_date", cmd.Flags().Lookup("creation_date"))
 			viper.BindPFlag("overwrite", cmd.Flags().Lookup("overwrite"))
 			viper.Unmarshal(&options)
-			download(args)
+			download(cmd.Flag("category").Value.String(), args)
 		},
 	}
+	cmdDownload.Flags().StringP("category", "c", "algorithms", "problem type")
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
 	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
 	cmdDownload.Flags().BoolP("skip_auth_check", "A", false, "allow anonymous download (disable username check)")
