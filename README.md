@@ -18,6 +18,8 @@ The dataset used for this research is available on Hugging Face: https://hugging
 
 ## TODO
 
+- [x] Add support for the database problem category
+- [ ] Add support for shell, concurrency and other problem categories
 - [x] Make command-line help self-explanatory
 - [x] Make logging/output more informative, especially when downloading questions
 - [x] Add structure to the config and options

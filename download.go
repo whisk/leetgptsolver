@@ -10,11 +10,12 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/v2"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,19 +30,19 @@ type QuestionSlug struct {
 
 const MAX_CONSECUTIVE_ERRORS = 5
 
-func download(args []string) {
+func download(category string, args []string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get files")
 		return
 	}
 
-	availableSlugs, err := getAvailableSlugs()
+	availableSlugs, err := getAvailableSlugs(category)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get questions slugs")
 		return
 	}
-	log.Info().Msgf("got %d question slugs", len(availableSlugs))
+	log.Info().Msgf("got %d question slugs for %s", len(availableSlugs), category)
 
 	// just print slugs
 	if options.Slugs {
@@ -76,9 +77,13 @@ func download(args []string) {
 	downloadQuestions(slugsToDownload)
 }
 
-func getAvailableSlugs() ([]QuestionSlug, error) {
+func getAvailableSlugs(category string) ([]QuestionSlug, error) {
+	if !slices.Contains([]string{"all", "algorithms", "database"}, category) {
+		return nil, fmt.Errorf("unsupported category: %s", category)
+	}
+
 	c := client()
-	resp, err := c.Get("https://leetcode.com/api/problems/algorithms/")
+	resp, err := c.Get("https://leetcode.com/api/problems/" + category + "/")
 	if err != nil {
 		return nil, err
 	}
