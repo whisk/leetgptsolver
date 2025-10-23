@@ -7,7 +7,7 @@ require (
 	github.com/DaRealFreak/cloudflare-bp-go v1.0.4
 	github.com/EDDYCJY/fake-useragent v0.2.0
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-	github.com/browserutils/kooky v0.2.2
+	github.com/browserutils/kooky v0.2.4
 	github.com/cohesion-org/deepseek-go v1.2.7
 	github.com/gocolly/colly v1.2.0
 	github.com/itchyny/gojq v0.12.17
@@ -55,7 +55,7 @@ require (
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
-	github.com/keybase/go-keychain v0.0.0-20250124001843-7f41edfa9689 // indirect
+	github.com/keybase/go-keychain v0.0.1 // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -83,13 +83,13 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac // indirect
-	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20250212204824-5a70512c5d8b // indirect

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http/cookiejar"
 	"os"
 	"os/signal"
 	"path"
@@ -189,12 +188,7 @@ func downloadQuestions(slugs []QuestionSlug) int {
 	)
 	c.WithTransport(newTransport())
 	if !options.SkipPaid {
-		jar, ok := cookieJar().(*cookiejar.Jar)
-		if !ok {
-			log.Fatal().Msg("failed to use cookie jar. This is a bug")
-			return -1
-		}
-		c.SetCookieJar(jar)
+		c.SetCookieJar(cookieJar())
 	}
 	err = c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
