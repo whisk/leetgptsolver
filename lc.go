@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -59,7 +60,7 @@ type QuestionDiscussCommentsResp struct {
 	}
 }
 
-var cookieJarCache *cookiejar.Jar
+var cookieJarCache http.CookieJar
 var leetcodeUrl *url.URL
 var leetcodeGraphqlUrl *url.URL
 
@@ -134,13 +135,7 @@ func cookieJar() http.CookieJar {
 		cookieJarCache, _ = cookiejar.New(nil)
 		return cookieJarCache
 	}
-	loadedJarTyped, ok := loadedJar.(*cookiejar.Jar)
-	if !ok {
-		log.Err(err).Msg("loaded cookie jar is not a cookie jar (this is a bug)")
-		cookieJarCache, _ = cookiejar.New(nil)
-	}
-	cookieJarCache = loadedJarTyped
-
+	cookieJarCache = loadedJar
 	return cookieJarCache
 }
 
@@ -153,8 +148,8 @@ func loadCookieJar() (http.CookieJar, error) {
 	if ok, _ := fileExists(cookiesFile); !ok {
 		return nil, fmt.Errorf("chrome cookies file not found or invalid: %s", cookiesFile)
 	}
-
-	for _, cookieStore := range kooky.FindAllCookieStores() {
+	ctx := context.TODO()
+	for _, cookieStore := range kooky.FindAllCookieStores(ctx) {
 		if ok, _ := fileExists(cookieStore.FilePath()); !ok {
 			// skip non-existing cookie stores
 			continue
@@ -162,7 +157,7 @@ func loadCookieJar() (http.CookieJar, error) {
 		log.Trace().Msgf("Found cookie store for %s: %s (default: %v)", cookieStore.Browser(), cookieStore.FilePath(), cookieStore.IsDefaultProfile())
 		if cookieStore.Browser() == "firefox" && cookieStore.IsDefaultProfile() {
 			// modern chrome cookies are not supported by kooky
-			subJar, err := cookieStore.SubJar(kooky.Valid)
+			subJar, err := cookieStore.SubJar(ctx, kooky.Valid)
 			defer cookieStore.Close()
 
 			if err != nil {
