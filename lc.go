@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	cloudflarebp "github.com/DaRealFreak/cloudflare-bp-go"
-	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/browserutils/kooky"
 	_ "github.com/browserutils/kooky/browser/chrome"
 	_ "github.com/browserutils/kooky/browser/firefox"
@@ -107,7 +107,6 @@ func makeAuthorizedHttpRequest(method string, url string, reqBody io.Reader) ([]
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to do the request: %w", err)
 	}
-	log.Trace().Msgf("http response %s", resp.Status)
 
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
@@ -157,7 +156,7 @@ func loadCookieJar() (http.CookieJar, error) {
 		log.Trace().Msgf("Found cookie store for %s: %s (default: %v)", cookieStore.Browser(), cookieStore.FilePath(), cookieStore.IsDefaultProfile())
 		if cookieStore.Browser() == "firefox" && cookieStore.IsDefaultProfile() {
 			// modern chrome cookies are not supported by kooky
-			subJar, err := cookieStore.SubJar(ctx, kooky.Valid)
+			subJar, err := cookieStore.SubJar(ctx, kooky.Valid, kooky.DomainHasSuffix(leetcodeUrl.Host))
 			defer cookieStore.Close()
 
 			if err != nil {
@@ -191,7 +190,8 @@ func newHeader() http.Header {
 
 	return http.Header{
 		"Content-Type": {"application/json"},
-		"User-Agent":   {browser.Firefox()},
+		// make user-agent configurable, preferably extracted from the firefox browser
+		"User-Agent":   {"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0"},
 		"X-Csrftoken":  {token},
 	}
 }
@@ -203,10 +203,31 @@ func client() *http.Client {
 
 	return client
 }
+type debugTransport struct {
+    base http.RoundTripper
+}
+
+func (t *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+    // At this point, cookies have been added by the client
+    if dump, err := httputil.DumpRequestOut(req, true); err == nil {
+        log.Trace().Msgf("request dump:\n%s", string(dump))
+    }
+
+    resp, err := t.base.RoundTrip(req)
+    if err != nil {
+        return resp, err
+    }
+
+    if dump, err := httputil.DumpResponse(resp, true); err == nil {
+        log.Trace().Msgf("response dump:\n%s", string(dump))
+    }
+
+    return resp, err
+}
 
 // &http.Transport{} bypasses cloudflare generally better than DefaultTransport
 func newTransport() http.RoundTripper {
-	return cloudflarebp.AddCloudFlareByPass(&http.Transport{})
+    return &debugTransport{base: cloudflarebp.AddCloudFlareByPass(&http.Transport{})}
 }
 
 func SubmitUrl(q Question) string {

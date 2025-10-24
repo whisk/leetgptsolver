@@ -144,7 +144,6 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	if err != nil {
 		return 0, NewNonRetriableError(fmt.Errorf("failed marshaling GraphQL: %w", err))
 	}
-	log.Trace().Msgf("Submission request body:\n%s", reqBody.String())
 	var respBody []byte
 	maxRetries := options.SubmitRetries
 	i := 0
@@ -155,7 +154,6 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
 		leetcodeThrottler.Touch()
-		log.Trace().Msgf("submission response body:\n%s", string(respBody))
 		if code == http.StatusBadRequest || code == 403 || code == 499 {
 			log.Err(err).Msg("Slowing down...")
 			leetcodeThrottler.Slowdown()
@@ -181,7 +179,6 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	decoder := json.NewDecoder(bytes.NewReader(respBody))
 	decoder.UseNumber()
 	err = decoder.Decode(&respStruct)
-	log.Trace().Msgf("submission response struct: %#v", respStruct)
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshal submission response: %w", err)
 	}
@@ -214,7 +211,6 @@ func checkStatus(url string) (*CheckResponse, error) {
 		log.Trace().Msgf("checking submission status (%d/%d)...", i, maxRetries)
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
 		leetcodeThrottler.Touch()
-		log.Trace().Msgf("Check response body: %s", string(respBody))
 		if code == http.StatusBadRequest || code == 403 || code == 499 {
 			err_message := string(respBody)
 			if len(err_message) > 80 {
