@@ -10,7 +10,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"path"
 	"slices"
 	"time"
@@ -20,6 +19,7 @@ import (
 	_ "github.com/browserutils/kooky/browser/chrome"
 	_ "github.com/browserutils/kooky/browser/firefox"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 type UgcArticleSolutionArticles struct {
@@ -138,15 +138,9 @@ func cookieJar() http.CookieJar {
 	return cookieJarCache
 }
 
+// loadCookieJar tries to find a suitable cookie jar from the firefox browser's default profile
+// modern chrome cookies are encrypted and not supported yet
 func loadCookieJar() (http.CookieJar, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read chrome cookies: %w", err)
-	}
-	cookiesFile := dir + "/Google/Chrome/Default/Cookies"
-	if ok, _ := fileExists(cookiesFile); !ok {
-		return nil, fmt.Errorf("chrome cookies file not found or invalid: %s", cookiesFile)
-	}
 	ctx := context.TODO()
 	for _, cookieStore := range kooky.FindAllCookieStores(ctx) {
 		if ok, _ := fileExists(cookieStore.FilePath()); !ok {
@@ -155,7 +149,6 @@ func loadCookieJar() (http.CookieJar, error) {
 		}
 		log.Trace().Msgf("Found cookie store for %s: %s (default: %v)", cookieStore.Browser(), cookieStore.FilePath(), cookieStore.IsDefaultProfile())
 		if cookieStore.Browser() == "firefox" && cookieStore.IsDefaultProfile() {
-			// modern chrome cookies are not supported by kooky
 			subJar, err := cookieStore.SubJar(ctx, kooky.Valid, kooky.DomainHasSuffix(leetcodeUrl.Host))
 			defer cookieStore.Close()
 
@@ -191,7 +184,7 @@ func newHeader() http.Header {
 	return http.Header{
 		"Content-Type": {"application/json"},
 		// make user-agent configurable, preferably extracted from the firefox browser
-		"User-Agent":   {"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0"},
+		"User-Agent":   {viper.GetString("user_agent")},
 		"X-Csrftoken":  {token},
 	}
 }
