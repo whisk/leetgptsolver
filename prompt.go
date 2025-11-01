@@ -366,7 +366,7 @@ func promptAnthropic(q Question, lang, modelName, params string) (*Solution, err
 		Thinking  struct {
 			Type         string `json:"type"`
 			BudgetTokens int    `json:"budget_tokens"`
-		}
+		} `json:"thinking"`
 	}
 	if params != "" {
 		err = json.Unmarshal([]byte(params), &customParams)
@@ -377,26 +377,20 @@ func promptAnthropic(q Question, lang, modelName, params string) (*Solution, err
 	}
 
 	messageParams := anthropic.MessageNewParams{
-		Model:       modelName,
+		Model:       anthropic.Model(modelName),
 		Temperature: anthropic.Float(0.0),
-		Messages: []anthropic.MessageParam{{
-			Role: anthropic.MessageParamRoleUser,
-			Content: []anthropic.ContentBlockParamUnion{{
-				OfRequestTextBlock: &anthropic.TextBlockParam{Text: prompt},
-			}},
-		}},
-		MaxTokens: 4096,
+		Messages:    []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))},
+		MaxTokens:   4096,
 	}
 	if customParams.MaxTokens > 0 {
 		messageParams.MaxTokens = int64(customParams.MaxTokens)
 	}
 	if customParams.Thinking.Type == "enabled" {
-		messageParams.Thinking = anthropic.ThinkingConfigParamUnion{
-			OfThinkingConfigEnabled: &anthropic.ThinkingConfigEnabledParam{
-				Type:         "enabled",
-				BudgetTokens: int64(customParams.Thinking.BudgetTokens),
-			},
+		budgetTokens := int64(0)
+		if customParams.Thinking.BudgetTokens > 0 {
+			budgetTokens = int64(customParams.Thinking.BudgetTokens)
 		}
+		messageParams.Thinking = anthropic.ThinkingConfigParamOfEnabled(budgetTokens)
 		messageParams.Temperature = anthropic.Float(1.0)
 	}
 
@@ -410,8 +404,12 @@ func promptAnthropic(q Question, lang, modelName, params string) (*Solution, err
 	log.Trace().Msgf("Got response:\n%+v", resp.Content)
 	answer := ""
 	for _, block := range resp.Content {
-		if block.Text != "" {
+		switch block.Type {
+		case "text":
 			answer += block.Text + "\n"
+		case "thinking":
+			// Skip thinking blocks for the final answer
+			continue
 		}
 	}
 
