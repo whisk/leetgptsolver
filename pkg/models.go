@@ -26,6 +26,7 @@ var OpenAiModels = []string{
 	openai.O120241217,              // Knowledge Cutoff: Oct 01, 2023
 	openai.O3Mini20250131,          // Knowledge Cutoff: Oct 01, 2023
 	openai.GPT4Dot5Preview20250227, // Knowledge Cutoff: Oct 01, 2023
+	openai.GPT5Mini,                // Knowledge Cutoff: May 31, 2024
 }
 
 var GoogleModels = []string{
@@ -34,11 +35,14 @@ var GoogleModels = []string{
 	"gemini-2.0-flash-001",
 	"gemini-2.0-pro-exp-02-05",
 	"gemini-2.5-pro-exp-03-25",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
 }
 
 var AnthropicModels = []string{
-	anthropic.ModelClaude_3_Opus_20240229,  // Training data cut-off: Aug 2023
-	anthropic.ModelClaude3_7Sonnet20250219, // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
+	string(anthropic.ModelClaude_3_Opus_20240229),   // Training data cut-off: Aug 2023
+	string(anthropic.ModelClaude3_7Sonnet20250219),  // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
+	string(anthropic.ModelClaudeSonnet4_5_20250929), // Training data cut-off: Jul 2025
 }
 
 var DeepseekModels = []string{
@@ -50,7 +54,7 @@ var XaiModels = []string{
 	"grok-2-1212", // The grok-2-1212 models have a knowledge cutoff date of July 17, 2024.
 	"grok-3-latest", // The grok 3 model family have a knowledge cutoff date of November 17, 2024 (made available on April 18, 2025).
 	"grok-3-mini-latest",
-
+	"grok-code-fast-1-0825",
 }
 
 var supportedModels []string
