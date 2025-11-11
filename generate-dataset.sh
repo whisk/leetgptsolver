@@ -2,9 +2,9 @@
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.2.0
+# Format version: 0.3.0
 # Please avoid removing existing fields or changing their types!
-p=$(cat <<-END
+p=$(cat <<-'END'
     {
         url: .Question.Url,
         title_slug: .Question.Data.Question.TitleSlug,
@@ -24,7 +24,14 @@ p=$(cat <<-END
         total_accepted: .Question.TotalAccepted,
         acceptance_rate: .Question.AcceptanceRate,
         created_at_approx: if .Question.CreatedAtApprox == "0001-01-01T00:00:00Z" then null else .Question.CreatedAtApprox end,
-    }
+        solutions: ([.Submissions | to_entries[] | select(.value.CheckResponse.status_msg == "Accepted" and .value.SubmittedAt != "0001-01-01T00:00:00Z")] as $accepted | . as $root | $accepted | map({
+                lang: .value.SubmitRequest.lang,
+                typed_code: .value.SubmitRequest.typed_code,
+                prompt: $root.Solutions[.key].Prompt,
+                model: $root.Solutions[.key].Model,
+                submitted_at: .value.SubmittedAt
+            }))
+        }
 END
 )
 
