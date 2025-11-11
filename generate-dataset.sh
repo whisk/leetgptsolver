@@ -2,7 +2,7 @@
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.3.0
+# Format version: 0.3.1
 # Please avoid removing existing fields or changing their types!
 p=$(cat <<-'END'
     {
@@ -30,7 +30,7 @@ p=$(cat <<-'END'
                 prompt: $root.Solutions[.key].Prompt,
                 model: $root.Solutions[.key].Model,
                 submitted_at: .value.SubmittedAt
-            }))
+            }) | if length > 0 then . else null end)
         }
 END
 )
