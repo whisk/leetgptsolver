@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -11,7 +12,12 @@ import (
 
 const SEPARATOR = "\t"
 
-func list(args []string, whereExpr string, printExpr string, printHeader bool) {
+type Result struct {
+	Value string
+	OrderBy any
+}
+
+func list(args []string, whereExpr, orderByExpr, printExpr string, printHeader bool) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to get files")
@@ -29,6 +35,17 @@ func list(args []string, whereExpr string, printExpr string, printHeader bool) {
 		return
 	}
 
+	if orderByExpr == "" {
+		orderByExpr = ".Question.Data.Question.TitleSlug"
+	}
+
+	var orderByQuery *gojq.Query
+	orderByQuery, err = gojq.Parse(orderByExpr)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to parse order by query")
+		return
+	}
+
 	printQuery, err := gojq.Parse(printExpr)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse print query")
@@ -41,6 +58,7 @@ func list(args []string, whereExpr string, printExpr string, printHeader bool) {
 		fmt.Println(s.String())
 	}
 
+	result := []Result{}
 outerLoop:
 	for _, file := range files {
 		var problem Problem
@@ -82,7 +100,25 @@ outerLoop:
 			continue
 		}
 
+		iterOrderBy := orderByQuery.Run(pStruct)
+		var orderBy any
+		i = 0
+		for {
+			i += 1
+			v, ok := iterOrderBy.Next()
+			if !ok {
+				break
+			}
+			if err, ok := v.(error); ok {
+				log.Err(err).Msg("failed to order by")
+				continue outerLoop
+			}
+			log.Trace().Msgf("order by clause %d = %v", i, v)
+			orderBy = v
+		}
+
 		iterPrint := printQuery.Run(pStruct)
+		value := ""
 		for {
 			v, ok := iterPrint.Next()
 			if !ok {
@@ -102,13 +138,38 @@ outerLoop:
 					log.Err(err).Msg("failed to marshal json")
 					continue outerLoop
 				}
-				fmt.Print(string(jsonBytes))
+				value = string(jsonBytes)
 			} else {
 				// print the value as is
-				fmt.Printf("%v"+SEPARATOR, v)
+				value = fmt.Sprintf("%v"+SEPARATOR, v)
 			}
 		}
-		fmt.Println()
+		result = append(result, Result{Value: value, OrderBy: orderBy})
+	}
+
+	slices.SortFunc(result, func(a, b Result) int {
+		switch aVal := a.OrderBy.(type) {
+		case int:
+			bVal, ok := b.OrderBy.(int)
+			if !ok {
+				log.Fatal().Msgf("order by values must be of the same type, got int and %T", b.OrderBy)
+			}
+			return aVal - bVal
+		case string:
+			bVal, ok := b.OrderBy.(string)
+			if !ok {
+				log.Fatal().Msgf("order by values must be of the same type, got string and %T", b.OrderBy)
+			}
+			return strings.Compare(aVal, bVal)
+		default:
+			log.Fatal().Msgf("unsupported order by type %T", a.OrderBy)
+		}
+
+		return 0
+	})
+
+	for _, r := range result {
+		fmt.Println(r.Value)
 	}
 }
 

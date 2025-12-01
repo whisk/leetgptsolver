@@ -256,7 +256,7 @@ func downloadQuestions(slugs []QuestionSlug) int {
 			}
 		}
 
-		if !options.Overwrite && fileAlreadyExists {
+		if options.Update && fileAlreadyExists {
 			log.Debug().Msgf("updating %s...", dstFile)
 			var existingProblem Problem
 			err := existingProblem.ReadProblem(dstFile)
@@ -301,10 +301,10 @@ func downloadQuestions(slugs []QuestionSlug) int {
 		fileAlreadyExists, _ := fileExists(dstFile)
 		if fileAlreadyExists {
 			alreadyDownloadedCnt += 1
-			if options.Force {
-				log.Debug().Msgf("file %s already exists, forcefully downloading...", dstFile)
+			if options.Update {
+				log.Debug().Msgf("file %s already exists, downloading for update", dstFile)
 			} else {
-				log.Debug().Msgf("file %s already exists", dstFile)
+				log.Debug().Msgf("file %s already exists, skipping", dstFile)
 				continue
 			}
 		}

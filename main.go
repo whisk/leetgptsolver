@@ -22,8 +22,8 @@ var options struct {
 	CreationDate  bool `mapstructure:"creation_date"`
 	SkipPaid      bool `mapstructure:"skip_paid"`
 	SkipAuthCheck bool `mapstructure:"skip_auth_check"`
-	Overwrite     bool
-	      string
+	Update        bool
+	Language      string
 	Model         string
 	Retries       int
 	CheckRetries  int `mapstructure:"check_retries"`
@@ -93,7 +93,7 @@ func main() {
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
 			viper.BindPFlag("skip_auth_check", cmd.Flags().Lookup("skip_auth_check"))
 			viper.BindPFlag("creation_date", cmd.Flags().Lookup("creation_date"))
-			viper.BindPFlag("overwrite", cmd.Flags().Lookup("overwrite"))
+			viper.BindPFlag("update", cmd.Flags().Lookup("update"))
 			viper.Unmarshal(&options)
 			download(cmd.Flag("category").Value.String(), args)
 		},
@@ -103,17 +103,18 @@ func main() {
 	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
 	cmdDownload.Flags().BoolP("skip_auth_check", "A", false, "allow anonymous download (disable username check)")
 	cmdDownload.Flags().BoolP("creation_date", "C", true, "determine approximate creation date for each problem based on user-generated content")
-	cmdDownload.Flags().BoolP("overwrite", "o", false, "overwrite existing problems")
+	cmdDownload.Flags().BoolP("update", "u", false, "update existing problems with the new question data (useful for updating problem stats)")
 
 	cmdList := &cobra.Command{
 		Use:   "list",
 		Short: "List problems info using jq",
 		Run: func(cmd *cobra.Command, args []string) {
-			list(args, cmd.Flag("where").Value.String(), cmd.Flag("print").Value.String(), cmd.Flag("header").Value.String() == "true")
+			list(args, cmd.Flag("where").Value.String(), cmd.Flag("order_by").Value.String(), cmd.Flag("print").Value.String(), cmd.Flag("header").Value.String() == "true")
 		},
 	}
-	cmdList.Flags().StringP("where", "w", "", "filter problems by where clause (using jq)")
-	cmdList.Flags().StringP("print", "p", ".", "print fields (using jq)")
+	cmdList.Flags().StringP("where", "w", "", "filter problems by where clause (jq expression)")
+	cmdList.Flags().StringP("order_by", "o", "", "order by jq expression")
+	cmdList.Flags().StringP("print", "p", ".", "print fields (jq expression)")
 	cmdList.Flags().BoolP("header", "H", true, "print header row")
 
 	cmdPrompt := &cobra.Command{
