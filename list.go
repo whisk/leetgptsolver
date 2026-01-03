@@ -138,10 +138,10 @@ outerLoop:
 					log.Err(err).Msg("failed to marshal json")
 					continue outerLoop
 				}
-				value = string(jsonBytes)
+				value += string(jsonBytes)
 			} else {
 				// print the value as is
-				value = fmt.Sprintf("%v"+SEPARATOR, v)
+				value += fmt.Sprintf("%v"+SEPARATOR, v)
 			}
 		}
 		result = append(result, Result{Value: value, OrderBy: orderBy})
