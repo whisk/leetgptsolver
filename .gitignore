@@ -24,3 +24,5 @@ go.work
 problems/*.json
 config.*.yaml
 
+# datasets
+*.jsonl
