@@ -1,10 +1,14 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+import sys
+import argparse
+import subprocess
+from pathlib import Path
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
 # Format version: 0.3.1
 # Please avoid removing existing fields or changing their types!
-p=$(cat <<-'END'
+JQ_FILTER = '''
     {
         url: .Question.Url,
         title_slug: .Question.Data.Question.TitleSlug,
@@ -32,7 +36,50 @@ p=$(cat <<-'END'
                 submitted_at: .value.SubmittedAt
             }) | if length > 0 then . else null end)
         }
-END
-)
+'''
 
-ls problems/*.json | go run . list -p "$p" --header=false -
+def main():
+    parser = argparse.ArgumentParser(description="Generate dataset using existing go tool.")
+    parser.add_argument("--problems-dir", default="problems", help="Directory containing problem JSON files")
+    parser.add_argument("--output-file", help="Output JSONL file (default: stdout)")
+    args = parser.parse_args()
+
+    problems_dir = Path(args.problems_dir)
+
+    # Get list of files
+    if not problems_dir.is_dir():
+        sys.exit(f"Error: {problems_dir} is not a directory")
+
+    # Glob files and sort them to ensure deterministic order (like ls)
+    files = sorted(str(p) for p in problems_dir.glob("*.json"))
+    if not files:
+        sys.exit(f"Error: No json files found in {problems_dir}")
+
+    # Prepare command: go run . list -p "$p" --header=false -
+    cmd = ["go", "run", ".", "list", "-p", JQ_FILTER, "--header=false", "-"]
+
+    # Setup output
+    stdout_target = sys.stdout
+    if args.output_file:
+        stdout_target = open(args.output_file, "w")
+
+    try:
+        subprocess.run(
+            cmd,
+            input="\n".join(files),
+            stdout=stdout_target,
+            stderr=sys.stderr, # Pass stderr through to see potential go build errors
+            text=True, # Enable text mode for stdin strings
+            check=True # Raise CalledProcessError on non-zero return code
+        )
+
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
+    except Exception as e:
+        sys.exit(f"Execution failed: {e}")
+    finally:
+        if args.output_file and stdout_target != sys.stdout:
+            stdout_target.close()
+
+if __name__ == "__main__":
+    main()
