@@ -20,6 +20,11 @@ type Problem struct {
 	Solutions   map[string]Solution
 	Submissions map[string]Submission
 	// metadata
+	// data populated on download
+	DownloadedAt    time.Time
+	CreatedAtApprox time.Time
+
+	// always recalculated on read
 	Path     string `json:"-"`
 	Filename string `json:"-"`
 }
@@ -57,11 +62,11 @@ type Question struct {
 			CompanyTagStats string
 		}
 	}
-	// data popupated on download
+	// OBSOLETE: data populated on download, to be removed in future. Use Problem.DownloadedAt, Problem.CreatedAtApprox instead
 	DownloadedAt    time.Time
 	CreatedAtApprox time.Time
 
-	// metadata. It is always recalculated on read
+	// always recalculated on read
 	// string as parsed from stats
 	AcRate           string
 	TotalSubmissions int

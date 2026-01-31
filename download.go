@@ -223,7 +223,8 @@ func downloadQuestions(slugs []QuestionSlug) int {
 			log.Err(err).Msg("failed to unmarshall question from json")
 			return
 		}
-		problem.Question.DownloadedAt = time.Now()
+		problem.DownloadedAt = time.Now()
+		problem.Question.DownloadedAt = problem.DownloadedAt
 
 		dstFile := r.Ctx.Get("dstFile")
 		if dstFile == "" {
@@ -247,12 +248,13 @@ func downloadQuestions(slugs []QuestionSlug) int {
 				log.Err(err).Msgf("failed to determine approximate creation date for %s", problem.Question.Data.Question.TitleSlug)
 			} else {
 				log.Info().Msgf("approximate creation date for %s is %s", problem.Question.Data.Question.TitleSlug, approxCreatedAt)
-				problem.Question.CreatedAtApprox = time.Date(
+				problem.CreatedAtApprox = time.Date(
 					approxCreatedAt.Year(),
 					time.Month(approxCreatedAt.Month()),
 					approxCreatedAt.Day(),
 					0, 0, 0, 0, time.UTC,
 				)
+				problem.Question.CreatedAtApprox = problem.CreatedAtApprox
 			}
 		}
 
@@ -265,6 +267,14 @@ func downloadQuestions(slugs []QuestionSlug) int {
 				return
 			}
 			existingProblem.Question = problem.Question
+			// metadata. We can't overwrite the whole problem struct because we want to keep existing submissions and solutions
+			if !problem.DownloadedAt.IsZero() {
+				existingProblem.DownloadedAt = problem.DownloadedAt
+			}
+			if !problem.CreatedAtApprox.IsZero() {
+				existingProblem.CreatedAtApprox = problem.CreatedAtApprox
+			}
+
 			err = existingProblem.SaveProblemInto(dstFile)
 			if err != nil {
 				log.Err(err).Msg("failed to update existing question")
