@@ -74,9 +74,9 @@ outerLoop:
 			log.Err(err).Msg("Failed to read the problem")
 			continue
 		}
-		if _, ok := problem.Solutions[modelName]; ok && !options.Force {
+		if solved, ok := problem.GetSolution(modelName, lang); ok && !options.Force {
 			skippedCnt += 1
-			log.Info().Msgf("Already solved at %s", problem.Solutions[modelName].SolvedAt.String())
+			log.Info().Msgf("Already solved at %s", solved.SolvedAt.String())
 			continue
 		}
 
@@ -119,8 +119,20 @@ outerLoop:
 		}
 
 		log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
-		problem.Solutions[modelName] = *solution
-		problem.Submissions[modelName] = Submission{} // new solutions clears old submissions
+		if problem.SolutionsV2 == nil {
+			problem.SolutionsV2 = map[string]map[string]Solution{}
+		}
+		if _, ok := problem.SolutionsV2[modelName]; !ok {
+			problem.SolutionsV2[modelName] = map[string]Solution{}
+		}
+		problem.SolutionsV2[modelName][lang] = *solution
+		if problem.SubmissionsV2 == nil {
+			problem.SubmissionsV2 = map[string]map[string]Submission{}
+		}
+		if _, ok := problem.SubmissionsV2[modelName]; !ok {
+			problem.SubmissionsV2[modelName] = map[string]Submission{}
+		}
+		problem.SubmissionsV2[modelName][lang] = Submission{} // new solutions clears old submissions
 		err = problem.SaveProblemInto(file)
 		if err != nil {
 			errorsCnt += 1
