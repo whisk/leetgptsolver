@@ -18,7 +18,9 @@ import (
 type Problem struct {
 	Question    Question
 	Solutions   map[string]Solution
+	SolutionsV2 map[string]map[string]Solution `json:"SolutionsV2,omitempty"`
 	Submissions map[string]Submission
+	SubmissionsV2 map[string]map[string]Submission `json:"SubmissionsV2,omitempty"`
 	// metadata
 	// data populated on download
 	DownloadedAt    time.Time
@@ -177,12 +179,68 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	if p.Submissions == nil {
 		p.Submissions = map[string]Submission{}
 	}
+	if p.SolutionsV2 == nil {
+		p.SolutionsV2 = map[string]map[string]Solution{}
+	}
+	if p.SubmissionsV2 == nil {
+		p.SubmissionsV2 = map[string]map[string]Submission{}
+	}
+	if len(p.SolutionsV2) == 0 && len(p.Solutions) > 0 {
+		p.SolutionsV2 = map[string]map[string]Solution{}
+		for modelName, sol := range p.Solutions {
+			lang := sol.Lang
+			if lang == "" {
+				lang = "unknown"
+			}
+			if _, ok := p.SolutionsV2[modelName]; !ok {
+				p.SolutionsV2[modelName] = map[string]Solution{}
+			}
+			p.SolutionsV2[modelName][lang] = sol
+		}
+	}
+	if len(p.SubmissionsV2) == 0 && len(p.Submissions) > 0 {
+		p.SubmissionsV2 = map[string]map[string]Submission{}
+		for modelName, subm := range p.Submissions {
+			lang := subm.SubmitRequest.Lang
+			if lang == "" {
+				lang = "unknown"
+			}
+			if _, ok := p.SubmissionsV2[modelName]; !ok {
+				p.SubmissionsV2[modelName] = map[string]Submission{}
+			}
+			p.SubmissionsV2[modelName][lang] = subm
+		}
+	}
 
 	return nil
 }
 
 func (p Problem) Url() string {
 	return "https://leetcode.com/problems/" + p.Question.Data.Question.TitleSlug + "/"
+}
+
+func (p Problem) GetSolution(model, lang string) (Solution, bool) {
+	if modelSolutions, ok := p.SolutionsV2[model]; ok {
+		if sol, ok := modelSolutions[lang]; ok {
+			return sol, true
+		}
+	}
+	if sol, ok := p.Solutions[model]; ok && sol.Lang == lang {
+		return sol, true
+	}
+	return Solution{}, false
+}
+
+func (p Problem) GetSubmission(model, lang string) (Submission, bool) {
+	if modelSubmissions, ok := p.SubmissionsV2[model]; ok {
+		if subm, ok := modelSubmissions[lang]; ok {
+			return subm, true
+		}
+	}
+	if subm, ok := p.Submissions[model]; ok && subm.SubmitRequest.Lang == lang {
+		return subm, true
+	}
+	return Submission{}, false
 }
 
 func (q Question) FindSnippet(lang string) string {

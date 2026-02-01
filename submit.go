@@ -50,9 +50,9 @@ outerLoop:
 			continue
 		}
 
-		solv, ok := problem.Solutions[modelName]
+		solv, ok := problem.GetSolution(modelName, lang)
 		if !ok {
-			log.Warn().Msgf("Model %s has no solution to submit", modelName)
+			log.Warn().Msgf("Model %s has no solution in %s to submit", modelName, lang)
 			skippedCnt += 1
 			continue
 		}
@@ -61,7 +61,7 @@ outerLoop:
 			skippedCnt += 1
 			continue
 		}
-		subm, ok := problem.Submissions[modelName]
+		subm, ok := problem.GetSubmission(modelName, lang)
 		if !options.Force && (ok && subm.CheckResponse.Finished) {
 			log.Info().Msgf("%s's solution is already submitted", modelName)
 			skippedCnt += 1
@@ -80,7 +80,13 @@ outerLoop:
 		}
 
 		log.Info().Msgf("Submission status: %s", submission.CheckResponse.StatusMsg)
-		problem.Submissions[modelName] = *submission
+		if problem.SubmissionsV2 == nil {
+			problem.SubmissionsV2 = map[string]map[string]Submission{}
+		}
+		if _, ok := problem.SubmissionsV2[modelName]; !ok {
+			problem.SubmissionsV2[modelName] = map[string]Submission{}
+		}
+		problem.SubmissionsV2[modelName][lang] = *submission
 		if !options.DryRun {
 			err = problem.SaveProblemInto(file)
 			if err != nil {
