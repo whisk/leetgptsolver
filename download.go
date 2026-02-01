@@ -242,7 +242,7 @@ func downloadQuestions(slugs []QuestionSlug) int {
 			return
 		}
 
-		if options.CreationDate {
+		if options.DetectApproxCreationDate {
 			approxCreatedAt, err := LoadFirstUgcContentTime(problem.Question.Data.Question.TitleSlug)
 			if err != nil {
 				log.Err(err).Msgf("failed to determine approximate creation date for %s", problem.Question.Data.Question.TitleSlug)

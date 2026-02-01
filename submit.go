@@ -101,7 +101,7 @@ func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {
 	subReq := SubmitRequest{
 		Lang:       s.Lang,
 		QuestionId: q.Data.Question.Id,
-		TypedCode:  codeToSubmit(s, true),
+		TypedCode:  codeToSubmit(s, !options.AddMetadataComment),
 	}
 
 	submissionId, err := submitCode(SubmitUrl(q), subReq)

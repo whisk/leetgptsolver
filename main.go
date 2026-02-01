@@ -14,20 +14,21 @@ import (
 
 var options struct {
 	// options below usually set by command line flags, but can also be set in config file
-	Force         bool
-	Verbose       int
-	Dir           string
-	DryRun        bool `mapstructure:"dry_run"`
-	Slugs         bool
-	CreationDate  bool `mapstructure:"creation_date"`
-	SkipPaid      bool `mapstructure:"skip_paid"`
-	SkipAuthCheck bool `mapstructure:"skip_auth_check"`
-	Update        bool
-	Language      string
-	Model         string
-	Retries       int
-	CheckRetries  int `mapstructure:"check_retries"`
-	SubmitRetries int `mapstructure:"submit_retries"`
+	Force                    bool
+	Verbose                  int
+	Dir                      string
+	DryRun                   bool `mapstructure:"dry_run"`
+	Slugs                    bool
+	DetectApproxCreationDate bool `mapstructure:"detect_approx_creation_date"`
+	SkipPaid                 bool `mapstructure:"skip_paid"`
+	SkipAuthCheck            bool `mapstructure:"skip_auth_check"`
+	Update                   bool
+	Language                 string
+	Model                    string
+	Retries                  int
+	CheckRetries             int `mapstructure:"check_retries"`
+	SubmitRetries            int `mapstructure:"submit_retries"`
+	AddMetadataComment       bool `mapstructure:"add_metadata_comment"`
 
 	// options below usually set in config file
 	ChatgptApiKey         string `mapstructure:"chatgpt_api_key"`
@@ -92,7 +93,7 @@ func main() {
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
 			viper.BindPFlag("skip_auth_check", cmd.Flags().Lookup("skip_auth_check"))
-			viper.BindPFlag("creation_date", cmd.Flags().Lookup("creation_date"))
+			viper.BindPFlag("detect_approx_creation_date", cmd.Flags().Lookup("detect_approx_creation_date"))
 			viper.BindPFlag("update", cmd.Flags().Lookup("update"))
 			viper.Unmarshal(&options)
 			download(cmd.Flag("category").Value.String(), args)
@@ -102,7 +103,7 @@ func main() {
 	cmdDownload.Flags().BoolP("slugs", "s", false, "list available problem slugs without downloading")
 	cmdDownload.Flags().BoolP("skip_paid", "P", false, "skip paid problems")
 	cmdDownload.Flags().BoolP("skip_auth_check", "A", false, "allow anonymous download (disable username check)")
-	cmdDownload.Flags().BoolP("creation_date", "C", true, "determine approximate creation date for each problem based on user-generated content")
+	cmdDownload.Flags().BoolP("detect_approx_creation_date", "C", true, "determine approximate creation date for each problem based on user-generated content")
 	cmdDownload.Flags().BoolP("update", "u", false, "update existing problems with the new question data (useful for updating problem stats)")
 
 	cmdList := &cobra.Command{
@@ -138,6 +139,7 @@ func main() {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
 			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
+			viper.BindPFlag("add_metadata_comment", cmd.Flags().Lookup("add_metadata_comment"))
 			viper.Unmarshal(&options)
 			submit(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
 		},
@@ -145,6 +147,7 @@ func main() {
 	cmdSubmit.PersistentFlags().StringP("language", "l", "python3", "programming language")
 	cmdSubmit.Flags().Int("submit_retries", 2, "number of retries")
 	cmdSubmit.Flags().Int("check_retries", 5, "number of retries")
+	cmdSubmit.Flags().Bool("add_metadata_comment", true, "add a comment with metadata to the submitted code")
 	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
 
 	cmdFix := &cobra.Command{
