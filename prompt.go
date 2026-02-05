@@ -5,20 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"time"
 	leetgptsolver "whisk/leetgptsolver/pkg"
 	"whisk/leetgptsolver/pkg/throttler"
 
-	"cloud.google.com/go/vertexai/genai"
+	"cloud.google.com/go/auth/credentials"
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropic_option "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/cohesion-org/deepseek-go"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 var promptThrottler throttler.Throttler
@@ -309,7 +311,7 @@ func promptXai(q Question, lang, modelName, params string) (*Solution, error) {
 func promptGoogle(q Question, lang, modelName, params string) (*Solution, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Error().Msgf("recovered: %v", err)
+			log.Error().Msgf("recovered: %v\n%s", err, debug.Stack())
 		}
 	}()
 
@@ -320,29 +322,38 @@ func promptGoogle(q Question, lang, modelName, params string) (*Solution, error)
 	log.Debug().Msgf("Generated %d line(s) of code prompt", strings.Count(prompt, "\n"))
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
-	projectID := options.GeminiProjectId
-	region := options.GeminiRegion
+	credJson, err := os.ReadFile(options.GeminiCredentialsFile)
+	if err != nil {
+		return nil, NewFatalError(fmt.Errorf("failed to read credentials file: %w", err))
+	}
+	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
+		CredentialsJSON: credJson,
+		Scopes:          []string{"https://www.googleapis.com/auth/cloud-platform"},
+	})
+	if err != nil {
+		return nil, NewFatalError(fmt.Errorf("failed to load credentials: %w", err))
+	}
 
 	ctx := context.Background()
-	opts := option.WithCredentialsFile(options.GeminiCredentialsFile)
-	client, err := genai.NewClient(ctx, projectID, region, opts)
+	config := &genai.ClientConfig{
+		Project:     options.GeminiProjectId,
+		Location:    options.GeminiRegion,
+		Backend:     genai.BackendVertexAI,
+		Credentials: creds,
+	}
+	client, err := genai.NewClient(ctx, config)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to create a client: %w", err))
 	}
-	defer client.Close()
-
-	gemini := client.GenerativeModel(modelName)
-	temp := float32(0.0)
-	gemini.GenerationConfig.Temperature = &temp
-	chat := gemini.StartChat()
-	if chat == nil {
-		return nil, errors.New("failed to start a chat")
-	}
 
 	t0 := time.Now()
-	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
+	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), &genai.GenerateContentConfig{
+		Temperature: genai.Ptr[float32](0.0),
+		TopP:        genai.Ptr[float32](0.0),
+		TopK:        genai.Ptr[float32](1.0),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to send a message: %w", err)
+		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 	answer, err := geminiAnswer(resp)
 	latency := time.Since(t0)
@@ -351,16 +362,21 @@ func promptGoogle(q Question, lang, modelName, params string) (*Solution, error)
 	}
 
 	log.Trace().Msgf("Got answer:\n%s", answer)
+	var promptTokens, outputTokens int
+	if resp.UsageMetadata != nil {
+		promptTokens = int(resp.UsageMetadata.PromptTokenCount)
+		outputTokens = int(resp.UsageMetadata.CandidatesTokenCount)
+	}
 	return &Solution{
 		Lang:         lang,
 		Prompt:       prompt,
 		Answer:       answer,
 		TypedCode:    extractCode(answer),
-		Model:        gemini.Name(),
+		Model:        modelName,
 		SolvedAt:     time.Now(),
 		Latency:      latency,
-		PromptTokens: int(resp.UsageMetadata.PromptTokenCount),
-		OutputTokens: int(resp.UsageMetadata.CandidatesTokenCount),
+		PromptTokens: promptTokens,
+		OutputTokens: outputTokens,
 	}, nil
 }
 
@@ -441,22 +457,14 @@ func promptAnthropic(q Question, lang, modelName, params string) (*Solution, err
 
 // very hackish
 func geminiAnswer(r *genai.GenerateContentResponse) (string, error) {
-	var parts []string
-	if len(r.Candidates) == 0 {
-		return "", NewNonRetriableError(errors.New("no candidates in response"))
+	if r == nil {
+		return "", NewNonRetriableError(errors.New("nil response"))
 	}
-	if len(r.Candidates[0].Content.Parts) == 0 && r.Candidates[0].FinishReason == genai.FinishReasonRecitation {
-		return "", NewNonRetriableError(errors.New("got FinishReasonRecitation in response"))
+	if text := strings.TrimSpace(r.Text()); text != "" {
+		return text, nil
 	}
-	buf, err := json.Marshal(r.Candidates[0].Content.Parts)
-	if err != nil {
-		return "", err
-	}
-	err = json.Unmarshal(buf, &parts)
-	if err != nil {
-		return "", err
-	}
-	return strings.Join(parts, ""), nil
+
+	return "", NewNonRetriableError(errors.New("no text in response"))
 }
 
 func generatePrompt(q Question, lang string) (string, string, error) {
