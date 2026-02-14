@@ -27,35 +27,39 @@ JQ_FILTER = '''
         total_submissions: .Question.TotalSubmissions,
         total_accepted: .Question.TotalAccepted,
         acceptance_rate: .Question.AcceptanceRate,
-        created_at_approx: if .Question.CreatedAtApprox == "0001-01-01T00:00:00Z" then null else .Question.CreatedAtApprox end,
-                solutions: (
-                        . as $root
-                        | [
-                                if (.SubmissionsV2? != null) then
-                                    (.SubmissionsV2 | to_entries[] as $modelEntry
-                                    | $modelEntry.value | to_entries[] as $langEntry
-                                    | select($langEntry.value.CheckResponse.status_msg == "Accepted" and $langEntry.value.SubmittedAt != "0001-01-01T00:00:00Z")
-                                    | {
-                                            lang: $langEntry.value.SubmitRequest.lang,
-                                            typed_code: $langEntry.value.SubmitRequest.typed_code,
-                                            prompt: $root.SolutionsV2[$modelEntry.key][$langEntry.key].Prompt,
-                                            model: $root.SolutionsV2[$modelEntry.key][$langEntry.key].Model,
-                                            submitted_at: $langEntry.value.SubmittedAt
-                                        })
-                                else
-                                    (.Submissions | to_entries[]
-                                    | select(.value.CheckResponse.status_msg == "Accepted" and .value.SubmittedAt != "0001-01-01T00:00:00Z")
-                                    | {
-                                            lang: .value.SubmitRequest.lang,
-                                            typed_code: .value.SubmitRequest.typed_code,
-                                            prompt: $root.Solutions[.key].Prompt,
-                                            model: $root.Solutions[.key].Model,
-                                            submitted_at: .value.SubmittedAt
-                                        })
-                                end
-                            ]
-                        | if length > 0 then . else null end
-                    )
+        created_at_approx: if .Question.CreatedAtApprox == "0001-01-01T00:00:00Z" then
+            if .CreatedAtApprox == "0001-01-01T00:00:00Z" then null else .CreatedAtApprox end
+        else
+            .Question.CreatedAtApprox
+        end,
+        solutions: (
+                . as $root
+                | [
+                        if (.SubmissionsV2? != null) then
+                            (.SubmissionsV2 | to_entries[] as $modelEntry
+                            | $modelEntry.value | to_entries[] as $langEntry
+                            | select($langEntry.value.CheckResponse.status_msg == "Accepted" and $langEntry.value.SubmittedAt != "0001-01-01T00:00:00Z")
+                            | {
+                                    lang: $langEntry.value.SubmitRequest.lang,
+                                    typed_code: $langEntry.value.SubmitRequest.typed_code,
+                                    prompt: $root.SolutionsV2[$modelEntry.key][$langEntry.key].Prompt,
+                                    model: $root.SolutionsV2[$modelEntry.key][$langEntry.key].Model,
+                                    submitted_at: $langEntry.value.SubmittedAt
+                                })
+                        else
+                            (.Submissions | to_entries[]
+                            | select(.value.CheckResponse.status_msg == "Accepted" and .value.SubmittedAt != "0001-01-01T00:00:00Z")
+                            | {
+                                    lang: .value.SubmitRequest.lang,
+                                    typed_code: .value.SubmitRequest.typed_code,
+                                    prompt: $root.Solutions[.key].Prompt,
+                                    model: $root.Solutions[.key].Model,
+                                    submitted_at: .value.SubmittedAt
+                                })
+                        end
+                    ]
+                | if length > 0 then . else null end
+            )
         }
 '''
 
