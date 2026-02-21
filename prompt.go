@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 	leetgptsolver "whisk/leetgptsolver/pkg"
-	"whisk/leetgptsolver/pkg/throttler"
 
 	"cloud.google.com/go/auth/credentials"
 	"github.com/anthropics/anthropic-sdk-go"
@@ -20,10 +20,12 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/rs/zerolog/log"
 	openai "github.com/sashabaranov/go-openai"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/genai"
 )
 
-var promptThrottler throttler.Throttler
+type prompterFunc func(Question, string, string, string) (*Solution, error)
 
 func prompt(args []string, lang, modelName string) {
 	files, err := filenamesFromArgs(args)
@@ -31,8 +33,6 @@ func prompt(args []string, lang, modelName string) {
 		log.Fatal().Err(err).Msg("Failed to get files")
 		return
 	}
-
-	promptThrottler = throttler.NewSimpleThrottler(1*time.Second, 30*time.Second)
 
 	if modelName == "" {
 		log.Error().Msg("Model is not set")
@@ -44,7 +44,7 @@ func prompt(args []string, lang, modelName string) {
 		return
 	}
 
-	var prompter func(Question, string, string, string) (*Solution, error)
+	var prompter prompterFunc
 	switch leetgptsolver.ModelFamily(modelId) {
 	case leetgptsolver.MODEL_FAMILY_OPENAI:
 		prompter = promptOpenAi
@@ -62,92 +62,114 @@ func prompt(args []string, lang, modelName string) {
 	}
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
-	solvedCnt := 0
-	skippedCnt := 0
-	errorsCnt := 0
-outerLoop:
+	var solvedCnt atomic.Int64
+	var skippedCnt atomic.Int64
+	var errorsCnt atomic.Int64
+
+	promptLimiter := rate.NewLimiter(rate.Limit(options.PromptRateLimit), options.PromptRateBurst)
+	log.Debug().Msgf("Prompt limiter configured: parallelism=%d rate=%0.6f req/s burst=%d", options.PromptParallelism, options.PromptRateLimit, options.PromptRateBurst)
+
+	g, ctx := errgroup.WithContext(context.Background())
+	g.SetLimit(options.PromptParallelism)
+
 	for i, file := range files {
-		log.Info().Msgf("[%d/%d] Prompting %s for problem %s ...", i+1, len(files), modelName, file)
+		g.Go(func() error {
+			log.Info().Msgf("[%d/%d] Prompting %s for problem %s ...", i+1, len(files), modelName, file)
 
-		var problem Problem
-		err := problem.ReadProblem(file)
-		if err != nil {
-			errorsCnt += 1
-			log.Err(err).Msg("Failed to read the problem")
-			continue
-		}
-		if solved, ok := problem.GetSolution(modelName, lang); ok && !options.Force {
-			skippedCnt += 1
-			log.Info().Msgf("Already solved at %s", solved.SolvedAt.String())
-			continue
-		}
-
-		var solution *Solution
-		maxReties := options.Retries
-		i := 0
-		promptThrottler.Ready()
-		for promptThrottler.Wait() && i < maxReties {
-			i += 1
-			solution, err = prompter(problem.Question, lang, modelId, modelParams)
-			promptThrottler.Touch()
+			var problem Problem
+			err := problem.ReadProblem(file)
 			if err != nil {
-				log.Err(err).Msg("Failed to get a solution")
-				promptThrottler.Slowdown()
-				if _, ok := err.(FatalError); ok {
-					log.Error().Msg("Aborting...")
-					errorsCnt += 1
-					break outerLoop
-				}
-				if _, ok := err.(NonRetriableError); ok {
-					errorsCnt += 1
-					continue outerLoop
-				}
-				// do not retry on this kind of timeout. It usually means the problem takes too much time to solve,
-				// and retrying will not help
-				if errors.Is(err, context.DeadlineExceeded) {
-					errorsCnt += 1
-					continue outerLoop
-				}
-				continue
+				errorsCnt.Add(1)
+				log.Err(err).Msg("Failed to read the problem")
+				return nil
+			}
+			if solved, ok := problem.GetSolution(modelName, lang); ok && !options.Force {
+				skippedCnt.Add(1)
+				log.Info().Msgf("Already solved at %s", solved.SolvedAt.String())
+				return nil
 			}
 
-			break // success
-		}
+			solution, err := promptWithRetries(ctx, promptLimiter, prompter, problem.Question, lang, modelId, modelParams)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
+				errorsCnt.Add(1)
+				if _, ok := err.(FatalError); ok {
+					log.Error().Err(err).Msg("Aborting...")
+					return err
+				}
+				log.Err(err).Msg("Failed to get a solution")
+				return nil
+			}
 
-		if solution == nil {
-			// did not get a solution after retries
-			errorsCnt += 1
-			continue
-		}
+			log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
+			if problem.SolutionsV2 == nil {
+				problem.SolutionsV2 = map[string]map[string]Solution{}
+			}
+			if _, ok := problem.SolutionsV2[modelName]; !ok {
+				problem.SolutionsV2[modelName] = map[string]Solution{}
+			}
+			problem.SolutionsV2[modelName][lang] = *solution
+			if problem.SubmissionsV2 == nil {
+				problem.SubmissionsV2 = map[string]map[string]Submission{}
+			}
+			if _, ok := problem.SubmissionsV2[modelName]; !ok {
+				problem.SubmissionsV2[modelName] = map[string]Submission{}
+			}
+			problem.SubmissionsV2[modelName][lang] = Submission{} // new solutions clears old submissions
+			err = problem.SaveProblemInto(file)
+			if err != nil {
+				errorsCnt.Add(1)
+				log.Err(err).Msg("Failed to save the solution")
+				return nil
+			}
 
-		log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
-		if problem.SolutionsV2 == nil {
-			problem.SolutionsV2 = map[string]map[string]Solution{}
-		}
-		if _, ok := problem.SolutionsV2[modelName]; !ok {
-			problem.SolutionsV2[modelName] = map[string]Solution{}
-		}
-		problem.SolutionsV2[modelName][lang] = *solution
-		if problem.SubmissionsV2 == nil {
-			problem.SubmissionsV2 = map[string]map[string]Submission{}
-		}
-		if _, ok := problem.SubmissionsV2[modelName]; !ok {
-			problem.SubmissionsV2[modelName] = map[string]Submission{}
-		}
-		problem.SubmissionsV2[modelName][lang] = Submission{} // new solutions clears old submissions
-		err = problem.SaveProblemInto(file)
-		if err != nil {
-			errorsCnt += 1
-			log.Err(err).Msg("Failed to save the solution")
-			continue
-		}
-
-		solvedCnt += 1
+			solvedCnt.Add(1)
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		log.Err(err).Msg("Prompting stopped due to fatal error")
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
-	log.Info().Msgf("Skipped problems: %d", skippedCnt)
-	log.Info().Msgf("Problems solved successfully: %d", solvedCnt)
-	log.Info().Msgf("Errors: %d", errorsCnt)
+	log.Info().Msgf("Skipped problems: %d", skippedCnt.Load())
+	log.Info().Msgf("Problems solved successfully: %d", solvedCnt.Load())
+	log.Info().Msgf("Errors: %d", errorsCnt.Load())
+}
+
+func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prompterFunc, q Question, lang, modelId, modelParams string) (*Solution, error) {
+	maxRetries := options.Retries
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		log.Debug().Msgf("Attempt %d of %d...", i+1, maxRetries)
+		if err := limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
+
+		solution, err := prompter(q, lang, modelId, modelParams)
+		if err == nil {
+			return solution, nil
+		}
+		lastErr = err
+
+		if _, ok := err.(FatalError); ok {
+			return nil, err
+		}
+		if _, ok := err.(NonRetriableError); ok {
+			return nil, err
+		}
+		// do not retry on this kind of timeout. It usually means the problem takes too much time to solve,
+		// and retrying will not help
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("failed to get a solution after retries")
 }
 
 func promptOpenAi(q Question, lang, modelName, params string) (*Solution, error) {
