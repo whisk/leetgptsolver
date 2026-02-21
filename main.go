@@ -26,9 +26,12 @@ var options struct {
 	Language                 string
 	Model                    string
 	Retries                  int
-	CheckRetries             int `mapstructure:"check_retries"`
-	SubmitRetries            int `mapstructure:"submit_retries"`
-	AddMetadataComment       bool `mapstructure:"add_metadata_comment"`
+	PromptParallelism        int     `mapstructure:"prompt_parallelism"`
+	PromptRateLimit          float64 `mapstructure:"prompt_rate_limit"`
+	PromptRateBurst          int     `mapstructure:"prompt_rate_burst"`
+	CheckRetries             int     `mapstructure:"check_retries"`
+	SubmitRetries            int     `mapstructure:"submit_retries"`
+	AddMetadataComment       bool    `mapstructure:"add_metadata_comment"`
 
 	// options below usually set in config file
 	ChatgptApiKey         string `mapstructure:"chatgpt_api_key"`
@@ -124,6 +127,9 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
+			viper.BindPFlag("prompt_parallelism", cmd.Flags().Lookup("prompt_parallelism"))
+			viper.BindPFlag("prompt_rate_limit", cmd.Flags().Lookup("prompt_rate_limit"))
+			viper.BindPFlag("prompt_rate_burst", cmd.Flags().Lookup("prompt_rate_burst"))
 			viper.Unmarshal(&options)
 			prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
 		},
@@ -131,6 +137,9 @@ func main() {
 	cmdPrompt.PersistentFlags().StringP("language", "l", "python3", "programming language")
 	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
 	cmdPrompt.PersistentFlags().IntP("retries", "r", 2, "number of retries")
+	cmdPrompt.PersistentFlags().Int("prompt_parallelism", 8, "number of prompt workers")
+	cmdPrompt.PersistentFlags().Float64("prompt_rate_limit", 1.0/30.0, "prompt request rate limit in requests/second")
+	cmdPrompt.PersistentFlags().Int("prompt_rate_burst", 2, "prompt rate limiter burst size")
 
 	cmdSubmit := &cobra.Command{
 		Use:   "submit",
