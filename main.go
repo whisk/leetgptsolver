@@ -29,6 +29,8 @@ var options struct {
 	PromptParallelism        int     `mapstructure:"prompt_parallelism"`
 	PromptRateLimit          float64 `mapstructure:"prompt_rate_limit"`
 	PromptRateBurst          int     `mapstructure:"prompt_rate_burst"`
+	SubmitRateLimit          float64 `mapstructure:"submit_rate_limit"`
+	SubmitRateBurst          int     `mapstructure:"submit_rate_burst"`
 	CheckRetries             int     `mapstructure:"check_retries"`
 	SubmitRetries            int     `mapstructure:"submit_retries"`
 	AddMetadataComment       bool    `mapstructure:"add_metadata_comment"`
@@ -148,6 +150,8 @@ func main() {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
 			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
+			viper.BindPFlag("submit_rate_limit", cmd.Flags().Lookup("submit_rate_limit"))
+			viper.BindPFlag("submit_rate_burst", cmd.Flags().Lookup("submit_rate_burst"))
 			viper.BindPFlag("add_metadata_comment", cmd.Flags().Lookup("add_metadata_comment"))
 			viper.Unmarshal(&options)
 			submit(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
@@ -156,6 +160,8 @@ func main() {
 	cmdSubmit.PersistentFlags().StringP("language", "l", "python3", "programming language")
 	cmdSubmit.Flags().Int("submit_retries", 2, "number of retries")
 	cmdSubmit.Flags().Int("check_retries", 5, "number of retries")
+	cmdSubmit.Flags().Float64("submit_rate_limit", 0.1, "submit/check request rate limit in requests/second")
+	cmdSubmit.Flags().Int("submit_rate_burst", 1, "submit/check rate limiter burst size")
 	cmdSubmit.Flags().Bool("add_metadata_comment", true, "add a comment with metadata to the submitted code")
 	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
 
