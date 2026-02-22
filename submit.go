@@ -2,15 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"whisk/leetgptsolver/pkg/throttler"
 
 	"github.com/rs/zerolog/log"
+	"golang.org/x/time/rate"
 )
 
 type InvalidCodeError struct {
@@ -21,7 +22,7 @@ func NewInvalidCodeError(err error) error {
 	return InvalidCodeError{err}
 }
 
-var leetcodeThrottler throttler.Throttler
+var leetcodeLimiter *rate.Limiter
 
 func submit(args []string, lang, modelName string) {
 	if options.DryRun {
@@ -37,8 +38,7 @@ func submit(args []string, lang, modelName string) {
 	submittedCnt := 0
 	skippedCnt := 0
 	errorsCnt := 0
-	// 2 seconds seems to be minimum acceptable delay for leetcode
-	leetcodeThrottler = throttler.NewSimpleThrottler(2*time.Second, 60*time.Second)
+	leetcodeLimiter = rate.NewLimiter(rate.Limit(options.SubmitRateLimit), options.SubmitRateBurst)
 outerLoop:
 	for i, file := range files {
 		log.Info().Msgf("[%d/%d] Submitting problem %s ...", i+1, len(files), file)
@@ -158,16 +158,15 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	var respBody []byte
 	maxRetries := options.SubmitRetries
 	i := 0
-	leetcodeThrottler.Ready()
-	for leetcodeThrottler.Wait() && i < maxRetries {
+	for i < maxRetries {
 		i += 1
+		if err := leetcodeLimiter.Wait(context.Background()); err != nil {
+			return 0, err
+		}
 
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
-		leetcodeThrottler.Touch()
 		if code == http.StatusBadRequest || code == 403 || code == 499 {
-			log.Err(err).Msg("Slowing down...")
-			leetcodeThrottler.Slowdown()
 			err_message := string(respBody)
 			if len(err_message) > 80 {
 				err_message = err_message[:80] + "..."
@@ -175,8 +174,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
-			log.Err(err).Msg("Slowing down...")
-			leetcodeThrottler.Slowdown()
+			log.Err(err).Msg("Retrying...")
 			continue
 		}
 
@@ -216,12 +214,13 @@ func checkStatus(url string) (*CheckResponse, error) {
 	var checkResp *CheckResponse
 	maxRetries := options.CheckRetries
 	i := 0
-	leetcodeThrottler.Ready()
-	for leetcodeThrottler.Wait() && i < maxRetries {
+	for i < maxRetries {
 		i += 1
+		if err := leetcodeLimiter.Wait(context.Background()); err != nil {
+			return nil, err
+		}
 		log.Trace().Msgf("checking submission status (%d/%d)...", i, maxRetries)
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
-		leetcodeThrottler.Touch()
 		if code == http.StatusBadRequest || code == 403 || code == 499 {
 			err_message := string(respBody)
 			if len(err_message) > 80 {
@@ -230,8 +229,7 @@ func checkStatus(url string) (*CheckResponse, error) {
 			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
-			log.Err(err).Msg("Slowing down...")
-			leetcodeThrottler.Slowdown()
+			log.Err(err).Msg("Retrying...")
 			continue
 		}
 
