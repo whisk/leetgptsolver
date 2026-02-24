@@ -142,7 +142,7 @@ func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prom
 	maxRetries := options.Retries
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
-		log.Debug().Msgf("Attempt %d of %d...", i+1, maxRetries)
+		log.Trace().Msgf("Attempt %d of %d...", i+1, maxRetries)
 		if err := limiter.Wait(ctx); err != nil {
 			return nil, err
 		}
@@ -159,11 +159,10 @@ func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prom
 		if _, ok := err.(NonRetriableError); ok {
 			return nil, err
 		}
-		// do not retry on this kind of timeout. It usually means the problem takes too much time to solve,
-		// and retrying will not help
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
 		}
+		log.Err(err).Msgf("Failed attempt %d of %d, will retry if any attempts remain...", i+1, maxRetries)
 	}
 
 	if lastErr != nil {
