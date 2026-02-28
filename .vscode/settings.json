@@ -1,0 +1,8 @@
+{
+  "files.exclude": {
+    // exclude config and env files from accessing by Copilot
+    // NOTE: this excludes files from the file explorer too!
+    "**/config.*.yaml": true,
+    "**/.env*": true
+  }
+}
