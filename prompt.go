@@ -95,7 +95,7 @@ func prompt(args []string, lang, modelName string) {
 					return nil
 				}
 				errorsCnt.Add(1)
-				if _, ok := err.(FatalError); ok {
+				if errors.Is(err, ErrFatal) {
 					log.Error().Err(err).Msg("Aborting...")
 					return err
 				}
@@ -153,10 +153,10 @@ func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prom
 		}
 		lastErr = err
 
-		if _, ok := err.(FatalError); ok {
+		if errors.Is(err, ErrFatal) {
 			return nil, err
 		}
-		if _, ok := err.(NonRetriableError); ok {
+		if errors.Is(err, ErrNonRetriable) {
 			return nil, err
 		}
 		if errors.Is(err, context.DeadlineExceeded) {

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -11,20 +12,22 @@ import (
 	"time"
 )
 
-type NonRetriableError struct {
-	error
-}
+var ErrNonRetriable = errors.New("non-retriable error")
 
-type FatalError struct {
-	error
-}
+var ErrFatal = errors.New("fatal error")
 
 func NewNonRetriableError(err error) error {
-	return NonRetriableError{err}
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrNonRetriable, err)
 }
 
 func NewFatalError(err error) error {
-	return FatalError{err}
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrFatal, err)
 }
 
 func humanizeTime(t time.Time) string {
