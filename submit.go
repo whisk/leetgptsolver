@@ -72,7 +72,7 @@ outerLoop:
 		submission, err := submitAndCheckSolution(problem.Question, solv)
 		if err != nil {
 			errorsCnt += 1
-			if _, ok := err.(FatalError); ok {
+			if errors.Is(err, ErrFatal) {
 				log.Err(err).Msgf("Aborting...")
 				break outerLoop
 			}
