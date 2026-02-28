@@ -25,6 +25,7 @@ var options struct {
 	Update                   bool
 	Language                 string
 	Model                    string
+	ModelVendor              string  `mapstructure:"model_vendor"`
 	Retries                  int
 	PromptParallelism        int     `mapstructure:"prompt_parallelism"`
 	PromptRateLimit          float64 `mapstructure:"prompt_rate_limit"`
@@ -128,16 +129,18 @@ func main() {
 		Short: "Prompt for a solution",
 		Run: func(cmd *cobra.Command, args []string) {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
+			viper.BindPFlag("model_vendor", cmd.Flags().Lookup("model_vendor"))
 			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
 			viper.BindPFlag("prompt_parallelism", cmd.Flags().Lookup("prompt_parallelism"))
 			viper.BindPFlag("prompt_rate_limit", cmd.Flags().Lookup("prompt_rate_limit"))
 			viper.BindPFlag("prompt_rate_burst", cmd.Flags().Lookup("prompt_rate_burst"))
 			viper.Unmarshal(&options)
-			prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
+			prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String(), cmd.Flag("model_vendor").Value.String())
 		},
 	}
 	cmdPrompt.PersistentFlags().StringP("language", "l", "python3", "programming language")
-	cmdPrompt.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
+	cmdPrompt.PersistentFlags().StringP("model", "m", "", "model name to use")
+	cmdPrompt.PersistentFlags().String("model_vendor", "", "model vendor override (openai|vertexai|anthropic|deepseek|xai)")
 	cmdPrompt.PersistentFlags().IntP("retries", "r", 2, "number of retries")
 	cmdPrompt.PersistentFlags().Int("prompt_parallelism", 8, "number of prompt workers")
 	cmdPrompt.PersistentFlags().Float64("prompt_rate_limit", 1.0/30.0, "prompt request rate limit in requests/second")
@@ -163,7 +166,7 @@ func main() {
 	cmdSubmit.Flags().Float64("submit_rate_limit", 0.1, "submit/check request rate limit in requests/second")
 	cmdSubmit.Flags().Int("submit_rate_burst", 1, "submit/check rate limiter burst size")
 	cmdSubmit.Flags().Bool("add_metadata_comment", true, "add a comment with metadata to the submitted code")
-	cmdSubmit.PersistentFlags().StringP("model", "m", "", "large  model family name to use")
+	cmdSubmit.PersistentFlags().StringP("model", "m", "", "model name to use")
 
 	cmdFix := &cobra.Command{
 		Use:   "fix",

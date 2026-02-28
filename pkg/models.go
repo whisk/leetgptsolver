@@ -3,7 +3,6 @@ package leetgptsolver // import "github.com/whisk/leetgptsolver/pkg"
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -12,13 +11,13 @@ import (
 )
 
 const (
-	MODEL_FAMILY_UNKNOWN = iota
-	MODEL_FAMILY_UNSUPPORTED
-	MODEL_FAMILY_OPENAI
-	MODEL_FAMILY_GOOGLE
-	MODEL_FAMILY_ANTHROPIC
-	MODEL_FAMILY_DEEPSEEK
-	MODEL_FAMILY_XAI
+	MODEL_VENDOR_UNKNOWN = iota
+	MODEL_VENDOR_UNSUPPORTED
+	MODEL_VENDOR_OPENAI
+	MODEL_VENDOR_GOOGLE
+	MODEL_VENDOR_ANTHROPIC
+	MODEL_VENDOR_DEEPSEEK
+	MODEL_VENDOR_XAI
 )
 
 var OpenAiModels = []string{
@@ -72,21 +71,68 @@ func SupportedModels() []string {
 	return supportedModels
 }
 
-func ModelFamily(modelName string) int {
+func GuessModelVendor(modelName string) int {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+
 	switch {
-	case slices.Index(OpenAiModels, modelName) != -1:
-		return MODEL_FAMILY_OPENAI
-	case slices.Index(GoogleModels, modelName) != -1:
-		return MODEL_FAMILY_GOOGLE
-	case slices.Index(AnthropicModels, modelName) != -1:
-		return MODEL_FAMILY_ANTHROPIC
-	case slices.Index(DeepseekModels, modelName) != -1:
-		return MODEL_FAMILY_DEEPSEEK
-	case slices.Index(XaiModels, modelName) != -1:
-		return MODEL_FAMILY_XAI
+	case strings.HasPrefix(modelName, "gpt"),
+		strings.HasPrefix(modelName, "chatgpt"),
+		strings.HasPrefix(modelName, "o1"),
+		strings.HasPrefix(modelName, "o3"),
+		strings.HasPrefix(modelName, "o4"),
+		strings.HasPrefix(modelName, "o5"):
+		return MODEL_VENDOR_OPENAI
+	case strings.HasPrefix(modelName, "gemini"):
+		return MODEL_VENDOR_GOOGLE
+	case strings.HasPrefix(modelName, "claude"):
+		return MODEL_VENDOR_ANTHROPIC
+	case strings.HasPrefix(modelName, "deepseek"):
+		return MODEL_VENDOR_DEEPSEEK
+	case strings.HasPrefix(modelName, "grok"),
+		strings.HasPrefix(modelName, "xai"):
+		return MODEL_VENDOR_XAI
 	default:
-		return MODEL_FAMILY_UNKNOWN
+		return MODEL_VENDOR_UNKNOWN
 	}
+}
+
+func ParseModelVendor(modelVendor string) (int, error) {
+	modelVendor = strings.ToLower(strings.TrimSpace(modelVendor))
+	if modelVendor == "" {
+		return MODEL_VENDOR_UNKNOWN, nil
+	}
+
+	switch modelVendor {
+	case "openai":
+		return MODEL_VENDOR_OPENAI, nil
+	case "google", "vertexai", "gemini":
+		return MODEL_VENDOR_GOOGLE, nil
+	case "anthropic", "claude":
+		return MODEL_VENDOR_ANTHROPIC, nil
+	case "deepseek":
+		return MODEL_VENDOR_DEEPSEEK, nil
+	case "xai", "grok":
+		return MODEL_VENDOR_XAI, nil
+	default:
+		return MODEL_VENDOR_UNKNOWN, fmt.Errorf("unknown model vendor: %s", modelVendor)
+	}
+}
+
+func ResolveModelVendor(modelName, modelVendor string) (int, error) {
+	vendorType, err := ParseModelVendor(modelVendor)
+	if err != nil {
+		return MODEL_VENDOR_UNKNOWN, err
+	}
+	if vendorType != MODEL_VENDOR_UNKNOWN {
+		return vendorType, nil
+	}
+
+	modelVendorType := GuessModelVendor(modelName)
+	if modelVendorType == MODEL_VENDOR_UNKNOWN {
+		return MODEL_VENDOR_UNKNOWN, fmt.Errorf("failed to guess vendor")
+	}
+
+	return modelVendorType, nil
 }
 
 // very quick and dirty support for model parameters

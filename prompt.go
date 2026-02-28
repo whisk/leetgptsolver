@@ -27,7 +27,7 @@ import (
 
 type prompterFunc func(Question, string, string, string) (*Solution, error)
 
-func prompt(args []string, lang, modelName string) {
+func prompt(args []string, lang, modelName, modelVendor string) {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get files")
@@ -44,17 +44,23 @@ func prompt(args []string, lang, modelName string) {
 		return
 	}
 
+	resolvedVendor, err := leetgptsolver.ResolveModelVendor(modelId, modelVendor)
+	if err != nil {
+		log.Error().Err(err).Msgf("failed to resolve vendor for model %s", modelId)
+		return
+	}
+
 	var prompter prompterFunc
-	switch leetgptsolver.ModelFamily(modelId) {
-	case leetgptsolver.MODEL_FAMILY_OPENAI:
+	switch resolvedVendor {
+	case leetgptsolver.MODEL_VENDOR_OPENAI:
 		prompter = promptOpenAi
-	case leetgptsolver.MODEL_FAMILY_GOOGLE:
+	case leetgptsolver.MODEL_VENDOR_GOOGLE:
 		prompter = promptGoogle
-	case leetgptsolver.MODEL_FAMILY_ANTHROPIC:
+	case leetgptsolver.MODEL_VENDOR_ANTHROPIC:
 		prompter = promptAnthropic
-	case leetgptsolver.MODEL_FAMILY_DEEPSEEK:
+	case leetgptsolver.MODEL_VENDOR_DEEPSEEK:
 		prompter = promptDeepseek
-	case leetgptsolver.MODEL_FAMILY_XAI:
+	case leetgptsolver.MODEL_VENDOR_XAI:
 		prompter = promptXai
 	default:
 		log.Error().Msgf("No prompter found for model %s", modelId)
