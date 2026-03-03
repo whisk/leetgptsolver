@@ -155,6 +155,7 @@ func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prom
 
 		solution, err := prompter(q, lang, modelId, modelParams)
 		if err == nil {
+			// success
 			return solution, nil
 		}
 		lastErr = err

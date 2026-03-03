@@ -156,6 +156,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		return 0, NewNonRetriableError(fmt.Errorf("failed marshaling GraphQL: %w", err))
 	}
 	var respBody []byte
+	var lastErr error
 	maxRetries := options.SubmitRetries
 	i := 0
 	for i < maxRetries {
@@ -166,22 +167,22 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 		var code int
 		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
-		if code == http.StatusBadRequest || code == 403 || code == 499 {
+		if code == http.StatusBadRequest || code == http.StatusForbidden || code == http.StatusTooManyRequests{
 			err_message := string(respBody)
 			if len(err_message) > 80 {
 				err_message = err_message[:80] + "..."
 			}
-			return 0, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
+			return 0, NewNonRetriableError(fmt.Errorf("%w. See response for details: %s", err, err_message))
 		}
-		if code == http.StatusTooManyRequests || err != nil {
-			log.Err(err).Msg("Retrying...")
-			continue
+		lastErr = err
+		if err == nil {
+			break // success
 		}
 
-		break // success
+		log.Err(err).Msg("Retrying...")
 	}
-	if err != nil {
-		return 0, err
+	if lastErr != nil {
+		return 0, lastErr
 	}
 
 	var respStruct map[string]any
