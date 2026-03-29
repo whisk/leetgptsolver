@@ -94,6 +94,11 @@ func prompt(args []string, lang, modelName, modelVendor string) {
 				log.Info().Msgf("Already solved at %s", solved.SolvedAt.String())
 				return nil
 			}
+			if problem.Question.FindSnippet(lang) == "" {
+				errorsCnt.Add(1)
+				log.Error().Msgf("Skipping problem %s: code snippet for language %s not found", file, lang)
+				return nil
+			}
 
 			solution, err := promptWithRetries(ctx, promptLimiter, prompter, problem.Question, lang, modelId, modelParams)
 			if err != nil {
