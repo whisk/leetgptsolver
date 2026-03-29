@@ -4,6 +4,7 @@ Research to identify the capabilities of LLMs in solving coding interview proble
 
 ## Publications
 
+* [Comparing LLMs' Coding Abilities Across Programming Languages](https://hackernoon.com/comparing-llms-coding-abilities-across-programming-languages)
 * [Testing LLMs on Solving Leetcode Problems in 2025
 ](https://hackernoon.com/testing-llms-on-solving-leetcode-problems-in-2025)
 * [Testing LLMs on Solving Leetcode Problems](https://hackernoon.com/testing-llms-on-solving-leetcode-problems) (2024)
