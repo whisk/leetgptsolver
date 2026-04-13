@@ -36,6 +36,8 @@ func submit(args []string, lang, modelName string) {
 
 	log.Info().Msgf("Submitting %d solutions...", len(files))
 	submittedCnt := 0
+	acceptedCnt := 0
+	notAcceptedCnt := 0
 	skippedCnt := 0
 	errorsCnt := 0
 	leetcodeLimiter = rate.NewLimiter(rate.Limit(options.SubmitRateLimit), options.SubmitRateBurst)
@@ -97,10 +99,15 @@ outerLoop:
 			}
 		}
 		submittedCnt += 1
+		if submission.CheckResponse.StatusMsg == "Accepted" {
+			acceptedCnt += 1
+		} else {
+			notAcceptedCnt += 1
+		}
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
 	log.Info().Msgf("Skipped problems: %d", skippedCnt)
-	log.Info().Msgf("Problems submitted successfully: %d", submittedCnt)
+	log.Info().Msgf("Problems submitted successfully: %d (accepted: %d, not accepted: %d, unknown: %d)", submittedCnt, acceptedCnt, notAcceptedCnt, submittedCnt-acceptedCnt-notAcceptedCnt)
 	log.Info().Msgf("Errors: %d", errorsCnt)
 }
 
