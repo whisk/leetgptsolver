@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -74,6 +75,22 @@ func initVerbosity() {
 	}
 }
 
+// Version is populated at build time using -ldflags.
+// If built via go run or go build without flags, it remains empty.
+var Version = ""
+
+func getVersion() string {
+	if Version != "" {
+		return Version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+	return "devel"
+}
+
 func main() {
 	cobra.OnInitialize(initConfig, initVerbosity)
 	consoleWriter := zerolog.NewConsoleWriter()
@@ -81,7 +98,11 @@ func main() {
 	consoleWriter.Out = os.Stderr
 	log.Logger = zerolog.New(consoleWriter).With().Timestamp().Logger()
 
-	rootCmd := &cobra.Command{Use: "leetgptsolver", CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true}}
+	rootCmd := &cobra.Command{
+		Use:               "leetgptsolver",
+		Version:           getVersion(),
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	}
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "be forceful: download already downloaded, submit already submitted etc.")
 	rootCmd.PersistentFlags().StringP("dir", "D", "problems", "")
 	rootCmd.PersistentFlags().BoolP("dry_run", "d", false, "do not make any changes to problem files")
