@@ -40,8 +40,8 @@ var GoogleModels = []string{
 }
 
 var AnthropicModels = []string{
-	string(anthropic.ModelClaude_3_Opus_20240229),   // Training data cut-off: Aug 2023
-	string(anthropic.ModelClaude3_7Sonnet20250219),  // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
+	"claude-3-opus-20240229",                        // Training data cut-off: Aug 2023
+	"claude-3-7-sonnet-20250219",                    // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
 	string(anthropic.ModelClaudeSonnet4_5_20250929), // Training data cut-off: Jul 2025
 }
 
