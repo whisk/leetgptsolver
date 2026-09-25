@@ -162,6 +162,7 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	if err != nil {
 		return 0, NewNonRetriableError(fmt.Errorf("failed marshaling GraphQL: %w", err))
 	}
+	reqBodyBytes := reqBody.Bytes()
 	var respBody []byte
 	var lastErr error
 	maxRetries := options.SubmitRetries
@@ -173,8 +174,8 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 		}
 
 		var code int
-		respBody, code, err = makeAuthorizedHttpRequest("POST", url, &reqBody)
-		if code == http.StatusBadRequest || code == http.StatusForbidden || code == http.StatusTooManyRequests{
+		respBody, code, err = makeAuthorizedHttpRequest("POST", url, bytes.NewReader(reqBodyBytes))
+		if code == http.StatusBadRequest || code == http.StatusForbidden || code == http.StatusTooManyRequests {
 			err_message := string(respBody)
 			if len(err_message) > 80 {
 				err_message = err_message[:80] + "..."
