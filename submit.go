@@ -169,8 +169,10 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	i := 0
 	for i < maxRetries {
 		i += 1
-		if err := leetcodeLimiter.Wait(context.Background()); err != nil {
-			return 0, err
+		if leetcodeLimiter != nil {
+			if err := leetcodeLimiter.Wait(context.Background()); err != nil {
+				return 0, err
+			}
 		}
 
 		var code int
@@ -200,8 +202,14 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshal submission response: %w", err)
 	}
-	if errorMsg, ok := respStruct["error"].(string); ok && respStruct["error"] == "Your code is too long. Please reduce your code size and try again." {
-		return 0, fmt.Errorf("submission error: %w", NewInvalidCodeError(errors.New(errorMsg)))
+	if errVal, exists := respStruct["error"]; exists && errVal != nil {
+		if errorMsg, ok := errVal.(string); ok && errorMsg != "" {
+			if errorMsg == "Your code is too long. Please reduce your code size and try again." {
+				return 0, fmt.Errorf("submission error: %w", NewInvalidCodeError(errors.New(errorMsg)))
+			}
+			return 0, fmt.Errorf("submission error: %s", errorMsg)
+		}
+		return 0, fmt.Errorf("submission error: %v", errVal)
 	}
 	submissionNumber, ok := respStruct["submission_id"].(json.Number)
 	if !ok {
@@ -221,45 +229,52 @@ func submitCode(url string, subReq SubmitRequest) (uint64, error) {
 
 func checkStatus(url string) (*CheckResponse, error) {
 	var checkResp *CheckResponse
+	var lastErr error
 	maxRetries := options.CheckRetries
 	i := 0
 	for i < maxRetries {
 		i += 1
-		if err := leetcodeLimiter.Wait(context.Background()); err != nil {
-			return nil, err
+		if leetcodeLimiter != nil {
+			if err := leetcodeLimiter.Wait(context.Background()); err != nil {
+				return nil, err
+			}
 		}
 		log.Trace().Msgf("checking submission status (%d/%d)...", i, maxRetries)
 		respBody, code, err := makeAuthorizedHttpRequest("GET", url, bytes.NewReader([]byte{}))
-		if code == http.StatusBadRequest || code == 403 || code == 499 {
+		if code == http.StatusBadRequest || code == http.StatusForbidden || code == 499 {
 			err_message := string(respBody)
 			if len(err_message) > 80 {
 				err_message = err_message[:80] + "..."
 			}
-			return &CheckResponse{}, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
+			return nil, NewNonRetriableError(fmt.Errorf("invalid or unauthorized request, see response: %s", err_message))
 		}
 		if code == http.StatusTooManyRequests || err != nil {
+			lastErr = err
 			log.Err(err).Msg("Retrying...")
 			continue
 		}
 
-		err = json.Unmarshal(respBody, &checkResp)
+		var current CheckResponse
+		err = json.Unmarshal(respBody, &current)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal check response: %w", err)
 		}
 
-		if checkResp.Finished {
-			break // success
+		checkResp = &current
+		lastErr = nil
+
+		if current.Finished {
+			return &current, nil // success
 		}
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("check status failed: %w", lastErr)
 	}
 	if checkResp == nil {
 		// did not get a response after retries
 		return nil, fmt.Errorf("failed to get check submission status")
 	}
-	if !checkResp.Finished {
-		return nil, fmt.Errorf("submission is not finished")
-	}
-
-	return checkResp, nil
+	return nil, fmt.Errorf("submission is not finished after %d retries", maxRetries)
 }
 
 func codeToSubmit(s Solution, addMetadataComment bool) (string, error) {

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +70,104 @@ func TestCodeToSubmit(t *testing.T) {
 		_, err := codeToSubmit(unsupportedSol, true)
 		if err == nil {
 			t.Fatalf("expected error for unsupported language, got nil")
+		}
+	})
+}
+
+func TestSubmitCodeErrorHandling(t *testing.T) {
+	options.SubmitRetries = 1
+
+	t.Run("code too long error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"error": "Your code is too long. Please reduce your code size and try again."}`))
+		}))
+		defer server.Close()
+
+		_, err := submitCode(server.URL, SubmitRequest{Lang: "python3", QuestionId: "1", TypedCode: "print(1)"})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var invalidCodeErr InvalidCodeError
+		if !errors.As(err, &invalidCodeErr) {
+			t.Errorf("expected InvalidCodeError, got: %v", err)
+		}
+	})
+
+	t.Run("generic leetcode error is properly surfaced", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"error": "You have submitted too frequently."}`))
+		}))
+		defer server.Close()
+
+		_, err := submitCode(server.URL, SubmitRequest{Lang: "python3", QuestionId: "1", TypedCode: "print(1)"})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "You have submitted too frequently.") {
+			t.Errorf("expected error message to contain 'You have submitted too frequently.', got: %v", err)
+		}
+	})
+
+	t.Run("successful submission id", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"submission_id": 987654321}`))
+		}))
+		defer server.Close()
+
+		subId, err := submitCode(server.URL, SubmitRequest{Lang: "python3", QuestionId: "1", TypedCode: "print(1)"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if subId != 987654321 {
+			t.Errorf("expected submission id 987654321, got: %d", subId)
+		}
+	})
+}
+
+func TestCheckStatusPolling(t *testing.T) {
+	options.CheckRetries = 3
+
+	t.Run("succeeds after polling", func(t *testing.T) {
+		attempts := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempts++
+			w.WriteHeader(http.StatusOK)
+			if attempts < 2 {
+				_, _ = w.Write([]byte(`{"finished": false, "state": "PENDING"}`))
+			} else {
+				_, _ = w.Write([]byte(`{"finished": true, "status_code": 10, "status_msg": "Accepted"}`))
+			}
+		}))
+		defer server.Close()
+
+		resp, err := checkStatus(server.URL)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !resp.Finished || resp.StatusMsg != "Accepted" {
+			t.Errorf("expected accepted finished response, got: %+v", resp)
+		}
+		if attempts != 2 {
+			t.Errorf("expected 2 attempts, got: %d", attempts)
+		}
+	})
+
+	t.Run("returns not finished after exhausting retries", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"finished": false, "state": "STARTED"}`))
+		}))
+		defer server.Close()
+
+		_, err := checkStatus(server.URL)
+		if err == nil {
+			t.Fatal("expected error after exhausting retries, got nil")
+		}
+		if !strings.Contains(err.Error(), "submission is not finished after 3 retries") {
+			t.Errorf("expected not finished error, got: %v", err)
 		}
 	})
 }
