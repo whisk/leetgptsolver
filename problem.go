@@ -16,10 +16,10 @@ import (
 
 // used for actual content for questions, solutions and submission results
 type Problem struct {
-	Question    Question
-	Solutions   map[string]Solution
-	SolutionsV2 map[string]map[string]Solution `json:"SolutionsV2,omitempty"`
-	Submissions map[string]Submission
+	Question      Question
+	Solutions     map[string]Solution
+	SolutionsV2   map[string]map[string]Solution `json:"SolutionsV2,omitempty"`
+	Submissions   map[string]Submission
 	SubmissionsV2 map[string]map[string]Submission `json:"SubmissionsV2,omitempty"`
 	// metadata
 	// data populated on download
@@ -153,7 +153,7 @@ func (p *Problem) ReadProblem(srcPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read problem from file: %w", err)
 	}
-	err = json.Unmarshal(contents, &p)
+	err = json.Unmarshal(contents, p)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal problem from json: %w", err)
 	}
