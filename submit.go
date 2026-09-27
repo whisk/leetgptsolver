@@ -24,14 +24,13 @@ func NewInvalidCodeError(err error) error {
 
 var leetcodeLimiter *rate.Limiter
 
-func submit(args []string, lang, modelName string) {
+func submit(args []string, lang, modelName string) error {
 	if options.DryRun {
 		log.Warn().Msg("Running in dry-run mode. No changes will be made to problem files")
 	}
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get files")
-		return
+		return fmt.Errorf("failed to get files: %w", err)
 	}
 
 	log.Info().Msgf("Submitting %d solutions...", len(files))
@@ -109,6 +108,7 @@ outerLoop:
 	log.Info().Msgf("Skipped problems: %d", skippedCnt)
 	log.Info().Msgf("Problems submitted successfully: %d (accepted: %d, not accepted: %d, unknown: %d)", submittedCnt, acceptedCnt, notAcceptedCnt, submittedCnt-acceptedCnt-notAcceptedCnt)
 	log.Info().Msgf("Errors: %d", errorsCnt)
+	return nil
 }
 
 func submitAndCheckSolution(q Question, s Solution) (*Submission, error) {

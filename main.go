@@ -115,7 +115,7 @@ func main() {
 	cmdDownload := &cobra.Command{
 		Use:   "download",
 		Short: "Download problems from leetcode",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			viper.BindPFlag("category", cmd.Flags().Lookup("category"))
 			viper.BindPFlag("slugs", cmd.Flags().Lookup("slugs"))
 			viper.BindPFlag("skip_paid", cmd.Flags().Lookup("skip_paid"))
@@ -123,7 +123,7 @@ func main() {
 			viper.BindPFlag("detect_approx_creation_date", cmd.Flags().Lookup("detect_approx_creation_date"))
 			viper.BindPFlag("update", cmd.Flags().Lookup("update"))
 			viper.Unmarshal(&options)
-			download(cmd.Flag("category").Value.String(), args)
+			return download(cmd.Flag("category").Value.String(), args)
 		},
 	}
 	cmdDownload.Flags().StringP("category", "c", "algorithms", "problem type")
@@ -136,8 +136,8 @@ func main() {
 	cmdList := &cobra.Command{
 		Use:   "list",
 		Short: "List problems info using jq",
-		Run: func(cmd *cobra.Command, args []string) {
-			list(args, cmd.Flag("where").Value.String(), cmd.Flag("order_by").Value.String(), cmd.Flag("print").Value.String(), cmd.Flag("header").Value.String() == "true")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return list(args, cmd.Flag("where").Value.String(), cmd.Flag("order_by").Value.String(), cmd.Flag("print").Value.String(), cmd.Flag("header").Value.String() == "true")
 		},
 	}
 	cmdList.Flags().StringP("where", "w", "", "filter problems by where clause (jq expression)")
@@ -148,7 +148,7 @@ func main() {
 	cmdPrompt := &cobra.Command{
 		Use:   "prompt",
 		Short: "Prompt for a solution",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("model_vendor", cmd.Flags().Lookup("model_vendor"))
 			viper.BindPFlag("retries", cmd.Flags().Lookup("retries"))
@@ -156,7 +156,7 @@ func main() {
 			viper.BindPFlag("prompt_rate_limit", cmd.Flags().Lookup("prompt_rate_limit"))
 			viper.BindPFlag("prompt_rate_burst", cmd.Flags().Lookup("prompt_rate_burst"))
 			viper.Unmarshal(&options)
-			prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String(), cmd.Flag("model_vendor").Value.String())
+			return prompt(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String(), cmd.Flag("model_vendor").Value.String())
 		},
 	}
 	cmdPrompt.PersistentFlags().StringP("language", "l", "python3", "programming language")
@@ -170,7 +170,7 @@ func main() {
 	cmdSubmit := &cobra.Command{
 		Use:   "submit",
 		Short: "Submit a solution",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			viper.BindPFlag("language", cmd.Flags().Lookup("language"))
 			viper.BindPFlag("submit_retries", cmd.Flags().Lookup("submit_retries"))
 			viper.BindPFlag("check_retries", cmd.Flags().Lookup("check_retries"))
@@ -178,7 +178,7 @@ func main() {
 			viper.BindPFlag("submit_rate_burst", cmd.Flags().Lookup("submit_rate_burst"))
 			viper.BindPFlag("add_metadata_comment", cmd.Flags().Lookup("add_metadata_comment"))
 			viper.Unmarshal(&options)
-			submit(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
+			return submit(args, cmd.Flag("language").Value.String(), cmd.Flag("model").Value.String())
 		},
 	}
 	cmdSubmit.PersistentFlags().StringP("language", "l", "python3", "programming language")
@@ -192,14 +192,15 @@ func main() {
 	cmdFix := &cobra.Command{
 		Use:   "fix",
 		Short: "Fix problems",
-		Run: func(cmd *cobra.Command, args []string) {
-			fix(args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fix(args)
 		},
 	}
 
 	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdFix)
 
+	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
-		panic(err)
+		os.Exit(1)
 	}
 }
