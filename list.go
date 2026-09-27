@@ -17,39 +17,33 @@ type Result struct {
 	OrderBy any
 }
 
-func list(args []string, whereExpr, orderByExpr, printExpr string, printHeader bool) {
+func list(args []string, whereExpr, orderByExpr, printExpr string, printHeader bool) error {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to get files")
-		return
+		return fmt.Errorf("failed to get files: %w", err)
 	}
 
 	if whereExpr == "" {
 		whereExpr = "true"
 	}
 
-	var whereQuery *gojq.Query
-	whereQuery, err = gojq.Parse(whereExpr)
+	whereQuery, err := gojq.Parse(whereExpr)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to parse where query")
-		return
+		return fmt.Errorf("failed to parse where query: %w", err)
 	}
 
 	if orderByExpr == "" {
 		orderByExpr = ".Question.Data.Question.TitleSlug"
 	}
 
-	var orderByQuery *gojq.Query
-	orderByQuery, err = gojq.Parse(orderByExpr)
+	orderByQuery, err := gojq.Parse(orderByExpr)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to parse order by query")
-		return
+		return fmt.Errorf("failed to parse order by query: %w", err)
 	}
 
 	printQuery, err := gojq.Parse(printExpr)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to parse print query")
-		return
+		return fmt.Errorf("failed to parse print query: %w", err)
 	}
 
 	if printHeader {
@@ -152,17 +146,19 @@ outerLoop:
 		case int:
 			bVal, ok := b.OrderBy.(int)
 			if !ok {
-				log.Fatal().Msgf("order by values must be of the same type, got int and %T", b.OrderBy)
+				log.Error().Msgf("order by values must be of the same type, got int and %T", b.OrderBy)
+				return 0
 			}
 			return aVal - bVal
 		case string:
 			bVal, ok := b.OrderBy.(string)
 			if !ok {
-				log.Fatal().Msgf("order by values must be of the same type, got string and %T", b.OrderBy)
+				log.Error().Msgf("order by values must be of the same type, got string and %T", b.OrderBy)
+				return 0
 			}
 			return strings.Compare(aVal, bVal)
 		default:
-			log.Fatal().Msgf("unsupported order by type %T", a.OrderBy)
+			log.Error().Msgf("unsupported order by type %T", a.OrderBy)
 		}
 
 		return 0
@@ -171,6 +167,7 @@ outerLoop:
 	for _, r := range result {
 		fmt.Println(r.Value)
 	}
+	return nil
 }
 
 // convert Problem struct to map[string]any for gojq

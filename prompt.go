@@ -27,27 +27,23 @@ import (
 
 type prompterFunc func(Question, string, string, string) (*Solution, error)
 
-func prompt(args []string, lang, modelName, modelVendor string) {
+func prompt(args []string, lang, modelName, modelVendor string) error {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get files")
-		return
+		return fmt.Errorf("failed to get files: %w", err)
 	}
 
 	if modelName == "" {
-		log.Error().Msg("Model is not set")
-		return
+		return errors.New("model is not set")
 	}
 	modelId, modelParams, err := leetgptsolver.ParseModelName(modelName)
 	if err != nil {
-		log.Err(err).Msg("failed to parse model")
-		return
+		return fmt.Errorf("failed to parse model: %w", err)
 	}
 
 	resolvedVendor, err := leetgptsolver.ResolveModelVendor(modelId, modelVendor)
 	if err != nil {
-		log.Error().Err(err).Msgf("failed to resolve vendor for model %s", modelId)
-		return
+		return fmt.Errorf("failed to resolve vendor for model %s: %w", modelId, err)
 	}
 
 	var prompter prompterFunc
@@ -63,12 +59,11 @@ func prompt(args []string, lang, modelName, modelVendor string) {
 	case leetgptsolver.MODEL_VENDOR_XAI:
 		prompter = promptXai
 	default:
-		log.Error().Msgf("No prompter found for model %s", modelId)
-		return
+		return fmt.Errorf("no prompter found for model %s", modelId)
 	}
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))
-	var solvedCnt atomic.Int64
+	var promptedCnt atomic.Int64
 	var skippedCnt atomic.Int64
 	var errorsCnt atomic.Int64
 
@@ -86,17 +81,17 @@ func prompt(args []string, lang, modelName, modelVendor string) {
 			err := problem.ReadProblem(file)
 			if err != nil {
 				errorsCnt.Add(1)
-				log.Err(err).Msg("Failed to read the problem")
+				log.Err(err).Msgf("[%s] Failed to read the problem", file)
 				return nil
 			}
 			if solved, ok := problem.GetSolution(modelName, lang); ok && !options.Force {
 				skippedCnt.Add(1)
-				log.Info().Msgf("Already solved at %s", solved.SolvedAt.String())
+				log.Info().Msgf("[%s] Already solved at %s", file, solved.SolvedAt.String())
 				return nil
 			}
 			if problem.Question.FindSnippet(lang) == "" {
 				errorsCnt.Add(1)
-				log.Error().Msgf("Skipping problem %s: code snippet for language %s not found", file, lang)
+				log.Error().Msgf("[%s] Skipping problem: code snippet for language %s not found", file, lang)
 				return nil
 			}
 
@@ -107,14 +102,14 @@ func prompt(args []string, lang, modelName, modelVendor string) {
 				}
 				errorsCnt.Add(1)
 				if errors.Is(err, ErrFatal) {
-					log.Error().Err(err).Msg("Aborting...")
+					log.Error().Err(err).Msgf("[%s] Aborting due to fatal error...", file)
 					return err
 				}
-				log.Err(err).Msg("Failed to get a solution")
+				log.Err(err).Msgf("[%s] Failed to get a solution", file)
 				return nil
 			}
 
-			log.Info().Msgf("Got %d line(s) of code in %0.1f second(s)", strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
+			log.Info().Msgf("[%s] Got %d line(s) of code in %0.1f second(s)", file, strings.Count(solution.TypedCode, "\n"), solution.Latency.Seconds())
 			if problem.SolutionsV2 == nil {
 				problem.SolutionsV2 = map[string]map[string]Solution{}
 			}
@@ -132,28 +127,31 @@ func prompt(args []string, lang, modelName, modelVendor string) {
 			err = problem.SaveProblemInto(file)
 			if err != nil {
 				errorsCnt.Add(1)
-				log.Err(err).Msg("Failed to save the solution")
+				log.Err(err).Msgf("[%s] Failed to save the solution", file)
 				return nil
 			}
 
-			solvedCnt.Add(1)
+			promptedCnt.Add(1)
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
 		log.Err(err).Msg("Prompting stopped due to fatal error")
+		return err
 	}
 	log.Info().Msgf("Files processed: %d", len(files))
 	log.Info().Msgf("Skipped problems: %d", skippedCnt.Load())
-	log.Info().Msgf("Problems solved successfully: %d", solvedCnt.Load())
+	log.Info().Msgf("Problems prompted successfully: %d", promptedCnt.Load())
 	log.Info().Msgf("Errors: %d", errorsCnt.Load())
+	return nil
 }
 
 func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prompterFunc, q Question, lang, modelId, modelParams string) (*Solution, error) {
 	maxRetries := options.Retries
+	slug := q.Data.Question.TitleSlug
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
-		log.Trace().Msgf("Attempt %d of %d...", i+1, maxRetries)
+		log.Trace().Msgf("[%s] Attempt %d of %d...", slug, i+1, maxRetries)
 		if err := limiter.Wait(ctx); err != nil {
 			return nil, err
 		}
@@ -174,7 +172,7 @@ func promptWithRetries(ctx context.Context, limiter *rate.Limiter, prompter prom
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
 		}
-		log.Err(err).Msgf("Failed attempt %d of %d, will retry if any attempts remain...", i+1, maxRetries)
+		log.Err(err).Msgf("[%s] Failed attempt %d of %d, will retry if any attempts remain...", slug, i+1, maxRetries)
 	}
 
 	if lastErr != nil {

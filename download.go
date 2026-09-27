@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,24 +30,22 @@ type QuestionSlug struct {
 
 const MAX_CONSECUTIVE_ERRORS = 5
 
-func download(category string, args []string) {
+func download(category string, args []string) error {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to get files")
-		return
+		return fmt.Errorf("failed to get files: %w", err)
 	}
 
 	availableSlugs, err := getAvailableSlugs(category)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to get questions slugs")
-		return
+		return fmt.Errorf("failed to get questions slugs: %w", err)
 	}
 	log.Info().Msgf("got %d question slugs for %s", len(availableSlugs), category)
 
 	// just print slugs
 	if options.Slugs {
 		printQuestions(availableSlugs)
-		return
+		return nil
 	}
 
 	slugsToDownload := []QuestionSlug{}
@@ -73,7 +72,8 @@ func download(category string, args []string) {
 			}
 		}
 	}
-	downloadQuestions(slugsToDownload)
+	_, err = downloadQuestions(slugsToDownload)
+	return err
 }
 
 func getAvailableSlugs(category string) ([]QuestionSlug, error) {
@@ -157,19 +157,17 @@ func makeQuestionQuery(q QuestionSlug) ([]byte, error) {
 }
 
 // for some reason first couple of problems may fail to bypass cloudflare
-func downloadQuestions(slugs []QuestionSlug) int {
+func downloadQuestions(slugs []QuestionSlug) (int, error) {
 	// Check if username is not empty before downloading, unless SkipAuthCheck is set
 	var err error
 	if !options.SkipAuthCheck {
 		userStatus, err := LoadUserStatus()
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to get user status from leetcode")
-			return -1
+			return 0, fmt.Errorf("failed to get user status from leetcode: %w", err)
 		}
 		log.Debug().Msgf("leetcode username: %s", userStatus.Username)
 		if userStatus.Username == "" {
-			log.Fatal().Msg("leetcode username is empty. Please ensure you are signed in Firefox before downloading questions, or use -A to allow anonymous download.")
-			return -1
+			return 0, errors.New("leetcode username is empty. Please ensure you are signed in Firefox before downloading questions, or use -A to allow anonymous download.")
 		}
 	}
 
@@ -196,7 +194,7 @@ func downloadQuestions(slugs []QuestionSlug) int {
 		RandomDelay: 15 * time.Second,
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to set download limits")
+		return 0, fmt.Errorf("failed to set download limits: %w", err)
 	}
 
 	signalChan := make(chan os.Signal, 1)
@@ -238,7 +236,7 @@ func downloadQuestions(slugs []QuestionSlug) int {
 
 		fileAlreadyExists, err := fileExists(dstFile)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to check if file %s exists", dstFile)
+			log.Error().Err(err).Msgf("failed to check if file %s exists", dstFile)
 			return
 		}
 
@@ -349,5 +347,5 @@ func downloadQuestions(slugs []QuestionSlug) int {
 		log.Info().Msgf("skipped: %d", skippedCnt)
 		log.Info().Msgf("errors: %d", errorsCnt)
 	}
-	return downloadedCnt
+	return downloadedCnt, nil
 }

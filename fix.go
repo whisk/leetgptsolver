@@ -1,22 +1,22 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/rs/zerolog/log"
 )
 
-func fix(args []string) {
+func fix(args []string) error {
 	files, err := filenamesFromArgs(args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get files")
-		return
+		return fmt.Errorf("failed to get files: %w", err)
 	}
 
 	if len(files) == 0 {
 		var err error
 		files, err = allFilesFromProblemsDir()
 		if err != nil {
-			log.Err(err).Msg("failed to read problems files")
-			return
+			return fmt.Errorf("failed to read problems files: %w", err)
 		}
 	}
 
@@ -41,4 +41,5 @@ func fix(args []string) {
 		fixedCnt += 1
 	}
 	log.Info().Msgf("Fixed %d/%d", fixedCnt, len(files))
+	return nil
 }
