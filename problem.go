@@ -173,6 +173,12 @@ func (p *Problem) ReadProblem(srcPath string) error {
 
 	p.Path = srcPath
 	p.Filename = filepath.Base(srcPath)
+	if p.CreatedAtApprox.IsZero() && !p.Question.CreatedAtApprox.IsZero() {
+		p.CreatedAtApprox = p.Question.CreatedAtApprox
+	}
+	if p.DownloadedAt.IsZero() && !p.Question.DownloadedAt.IsZero() {
+		p.DownloadedAt = p.Question.DownloadedAt
+	}
 	if p.Solutions == nil {
 		p.Solutions = map[string]Solution{}
 	}

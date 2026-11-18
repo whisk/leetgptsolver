@@ -234,17 +234,11 @@ func downloadQuestions(slugs []QuestionSlug) (int, error) {
 		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 		defer signal.Reset()
 
-		fileAlreadyExists, err := fileExists(dstFile)
-		if err != nil {
-			log.Error().Err(err).Msgf("failed to check if file %s exists", dstFile)
-			return
-		}
-
 		if options.DetectApproxCreationDate {
 			approxCreatedAt, err := LoadFirstUgcContentTime(problem.Question.Data.Question.TitleSlug)
 			if err != nil {
 				log.Err(err).Msgf("failed to determine approximate creation date for %s", problem.Question.Data.Question.TitleSlug)
-			} else {
+			} else if !approxCreatedAt.IsZero() {
 				log.Info().Msgf("approximate creation date for %s is %s", problem.Question.Data.Question.TitleSlug, approxCreatedAt)
 				problem.CreatedAtApprox = time.Date(
 					approxCreatedAt.Year(),
@@ -256,34 +250,9 @@ func downloadQuestions(slugs []QuestionSlug) (int, error) {
 			}
 		}
 
-		if options.Update && fileAlreadyExists {
-			log.Debug().Msgf("updating %s...", dstFile)
-			var existingProblem Problem
-			err := existingProblem.ReadProblem(dstFile)
-			if err != nil {
-				log.Err(err).Msgf("failed to read existing problem from %s", dstFile)
-				return
-			}
-			existingProblem.Question = problem.Question
-			// metadata. We can't overwrite the whole problem struct because we want to keep existing submissions and solutions
-			if !problem.DownloadedAt.IsZero() {
-				existingProblem.DownloadedAt = problem.DownloadedAt
-			}
-			if !problem.CreatedAtApprox.IsZero() {
-				existingProblem.CreatedAtApprox = problem.CreatedAtApprox
-			}
-
-			err = existingProblem.SaveProblemInto(dstFile)
-			if err != nil {
-				log.Err(err).Msg("failed to update existing question")
-				return
-			}
-		} else {
-			err = problem.SaveProblemInto(dstFile)
-			if err != nil {
-				log.Err(err).Msg("failed to save downloaded question")
-				return
-			}
+		if err := saveOrUpdateProblem(dstFile, problem, options.Update); err != nil {
+			log.Err(err).Msgf("failed to save problem %s", dstFile)
+			return
 		}
 		signal.Reset()
 
@@ -348,4 +317,40 @@ func downloadQuestions(slugs []QuestionSlug) (int, error) {
 		log.Info().Msgf("errors: %d", errorsCnt)
 	}
 	return downloadedCnt, nil
+}
+
+func saveOrUpdateProblem(dstFile string, problem Problem, update bool) error {
+	fileAlreadyExists, err := fileExists(dstFile)
+	if err != nil {
+		return fmt.Errorf("failed to check if file %s exists: %w", dstFile, err)
+	}
+
+	if update && fileAlreadyExists {
+		log.Debug().Msgf("updating %s...", dstFile)
+		var existingProblem Problem
+		err := existingProblem.ReadProblem(dstFile)
+		if err != nil {
+			return fmt.Errorf("failed to read existing problem from %s: %w", dstFile, err)
+		}
+		existingProblem.Question = problem.Question
+		// metadata. We can't overwrite the whole problem struct because we want to keep existing submissions and solutions
+		if !problem.DownloadedAt.IsZero() {
+			existingProblem.DownloadedAt = problem.DownloadedAt
+		}
+		if !problem.CreatedAtApprox.IsZero() {
+			existingProblem.CreatedAtApprox = problem.CreatedAtApprox
+		}
+
+		err = existingProblem.SaveProblemInto(dstFile)
+		if err != nil {
+			return fmt.Errorf("failed to update existing question: %w", err)
+		}
+		return nil
+	}
+
+	err = problem.SaveProblemInto(dstFile)
+	if err != nil {
+		return fmt.Errorf("failed to save downloaded question: %w", err)
+	}
+	return nil
 }

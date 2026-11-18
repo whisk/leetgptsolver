@@ -8,6 +8,8 @@ from pathlib import Path
 # Format: JSON Lines (jsonl)
 # Format version: 0.3.1
 # Please avoid removing existing fields or changing their types!
+# Note: derived fields (.Question.Url, TotalSubmissions, AcceptanceRate, etc.) and
+# V2 maps are populated on read by `go run . list`
 JQ_FILTER = '''
     {
         url: .Question.Url,
