@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Generates dataset for HF: https://huggingface.co/datasets/whiskwhite/leetcode-complete
 # Format: JSON Lines (jsonl)
-# Format version: 0.3.1
+# Format version: 0.3.2
 # Please avoid removing existing fields or changing their types!
 # Note: derived fields (.Question.Url, TotalSubmissions, AcceptanceRate, etc.) and
 # V2 maps are populated on read by `go run . list`
@@ -60,7 +60,6 @@ JQ_FILTER = '''
                                 })
                         end
                     ]
-                | if length > 0 then . else null end
             )
         }
 '''

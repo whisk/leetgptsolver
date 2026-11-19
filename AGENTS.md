@@ -63,8 +63,8 @@ One file per problem (`problems/<titleSlug>.json`). Keys are Go PascalCase excep
 
 ## Scripts & experiments
 
-- `generate-dataset.py`: `problems/*.json` → JSONL via `go run . list`. **Format 0.3.1 — never remove fields or change types.** Intentionally excludes accepted submissions with a zero `SubmittedAt` (resubmit instead); problems with none get `solutions: null`.
-- `split-dataset.py`: JSONL → `train`/`validation`/`test`/`unsolved` (`solutions == null` → `unsolved`; else deterministic `md5(id + "leetgptsolver-v1") % 100` — don't change the salt).
+- `generate-dataset.py`: `problems/*.json` → JSONL via `go run . list`. **Format 0.3.1 — never remove fields or change types.** Intentionally excludes accepted submissions with a zero `SubmittedAt` (resubmit instead); problems with none get `solutions: []`.
+- `split-dataset.py`: JSONL → `train`/`validation`/`test`/`unsolved` (empty or `null` `solutions` → `unsolved`; else deterministic `md5(id + "leetgptsolver-v1") % 100` — don't change the salt).
 - `update-problems-metadata.py`: refresh metadata/stats for `-n` latest or `-r` random problems (`download -c all -u --detect_approx_creation_date=false`). Needs approval + backup.
 - `list-unsolved-problems.sh`: paths of problems with no accepted submission.
 - `experiments/`: historical problem sets (`set-*.txt`) and publication reports (`report-*.tsv/txt`); don't rewrite existing files.

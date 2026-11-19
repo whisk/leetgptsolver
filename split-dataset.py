@@ -37,7 +37,7 @@ def main():
                     sys.exit(f"Error decoding JSON: {e}")
 
                 split = None
-                if data.get("solutions") is None:
+                if not data.get("solutions"):
                     split = "unsolved"
                 else:
                     problem_id = data.get("id")
