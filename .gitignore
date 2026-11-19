@@ -27,3 +27,6 @@ config.*.yaml
 
 # datasets
 *.jsonl
+
+# python
+__pycache__/
