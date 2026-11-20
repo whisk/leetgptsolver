@@ -43,7 +43,10 @@ func prompt(args []string, lang, modelName, modelVendor string) error {
 
 	resolvedVendor, err := leetgptsolver.ResolveModelVendor(modelId, modelVendor)
 	if err != nil {
-		return fmt.Errorf("failed to resolve vendor for model %s: %w", modelId, err)
+		return fmt.Errorf("failed to resolve vendor for model %s: %w (specify --model_vendor or run 'leetgptsolver models' to see available models)", modelId, err)
+	}
+	if isNonTextModel(resolvedVendor, modelId, nil) {
+		return fmt.Errorf("model %s is not a text model and is not supported by prompt (run 'leetgptsolver models %s' to list supported text models)", modelId, leetgptsolver.VendorName(resolvedVendor))
 	}
 
 	var prompter prompterFunc
@@ -59,7 +62,7 @@ func prompt(args []string, lang, modelName, modelVendor string) error {
 	case leetgptsolver.MODEL_VENDOR_XAI:
 		prompter = promptXai
 	default:
-		return fmt.Errorf("no prompter found for model %s", modelId)
+		return fmt.Errorf("model %s (vendor %s) is not supported by prompt (run 'leetgptsolver models' to list available models)", modelId, leetgptsolver.VendorName(resolvedVendor))
 	}
 
 	log.Info().Msgf("Prompting %d solutions...", len(files))

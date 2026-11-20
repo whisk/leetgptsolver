@@ -4,10 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/anthropics/anthropic-sdk-go"
-	deepseek "github.com/cohesion-org/deepseek-go"
-	"github.com/sashabaranov/go-openai"
 )
 
 const (
@@ -20,55 +16,31 @@ const (
 	MODEL_VENDOR_XAI
 )
 
-var OpenAiModels = []string{
-	openai.GPT4Turbo0125,           // Knowledge Cutoff: Dec 01, 2023
-	openai.O120241217,              // Knowledge Cutoff: Oct 01, 2023
-	openai.O3Mini20250131,          // Knowledge Cutoff: Oct 01, 2023
-	openai.GPT4Dot5Preview20250227, // Knowledge Cutoff: Oct 01, 2023
-	openai.GPT5Mini,                // Knowledge Cutoff: May 31, 2024
+func SupportedVendors() []int {
+	return []int{
+		MODEL_VENDOR_OPENAI,
+		MODEL_VENDOR_GOOGLE,
+		MODEL_VENDOR_ANTHROPIC,
+		MODEL_VENDOR_DEEPSEEK,
+		MODEL_VENDOR_XAI,
+	}
 }
 
-var GoogleModels = []string{
-	"gemini-1.0-pro",
-	"gemini-1.5-pro-preview-0409",
-	"gemini-2.0-flash-001",
-	"gemini-2.0-pro-exp-02-05",
-	"gemini-2.5-pro-exp-03-25",
-	"gemini-2.5-pro",
-	"gemini-2.5-flash",
-	"gemini-3-flash-preview",
-}
-
-var AnthropicModels = []string{
-	"claude-3-opus-20240229",                        // Training data cut-off: Aug 2023
-	"claude-3-7-sonnet-20250219",                    // Training data cut-off: Nov 2024 (knowledge cut-off date is the end of October 2024)
-	string(anthropic.ModelClaudeSonnet4_5_20250929), // Training data cut-off: Jul 2025
-}
-
-var DeepseekModels = []string{
-	deepseek.DeepSeekChat,     // points to DeepSeek-V3 as of Mar 2025, most likely the version 2024/12/26 (https://api-docs.deepseek.com/news/news1226)
-	deepseek.DeepSeekReasoner, // points to DeepSeek-R1 as of Mar 2025, most likely the version 2025/01/20 (https://api-docs.deepseek.com/news/news250120)
-}
-
-var XaiModels = []string{
-	"grok-2-1212",   // The grok-2-1212 models have a knowledge cutoff date of July 17, 2024.
-	"grok-3-latest", // The grok 3 and 4 model families have a knowledge cutoff date of November, 2024
-	"grok-3-mini-latest",
-	"grok-code-fast-1-0825",
-}
-
-var supportedModels []string
-
-func init() {
-	supportedModels = append(supportedModels, OpenAiModels...)
-	supportedModels = append(supportedModels, GoogleModels...)
-	supportedModels = append(supportedModels, AnthropicModels...)
-	supportedModels = append(supportedModels, DeepseekModels...)
-	supportedModels = append(supportedModels, XaiModels...)
-}
-
-func SupportedModels() []string {
-	return supportedModels
+func VendorName(vendor int) string {
+	switch vendor {
+	case MODEL_VENDOR_OPENAI:
+		return "openai"
+	case MODEL_VENDOR_GOOGLE:
+		return "google"
+	case MODEL_VENDOR_ANTHROPIC:
+		return "anthropic"
+	case MODEL_VENDOR_DEEPSEEK:
+		return "deepseek"
+	case MODEL_VENDOR_XAI:
+		return "xai"
+	default:
+		return "unknown"
+	}
 }
 
 func GuessModelVendor(modelName string) int {

@@ -119,3 +119,34 @@ func TestResolveModelVendor(t *testing.T) {
 		t.Fatalf("expected openai model vendor, got %d", modelVendor)
 	}
 }
+
+func TestVendorNameAndSupportedVendors(t *testing.T) {
+	vendors := SupportedVendors()
+	if len(vendors) != 5 {
+		t.Fatalf("expected 5 supported vendors, got %d", len(vendors))
+	}
+
+	expectedNames := map[int]string{
+		MODEL_VENDOR_OPENAI:    "openai",
+		MODEL_VENDOR_GOOGLE:    "google",
+		MODEL_VENDOR_ANTHROPIC: "anthropic",
+		MODEL_VENDOR_DEEPSEEK:  "deepseek",
+		MODEL_VENDOR_XAI:       "xai",
+		MODEL_VENDOR_UNKNOWN:   "unknown",
+	}
+	for vendor, want := range expectedNames {
+		if got := VendorName(vendor); got != want {
+			t.Errorf("VendorName(%d) = %q, want %q", vendor, got, want)
+		}
+	}
+	for _, vendor := range vendors {
+		name := VendorName(vendor)
+		parsed, err := ParseModelVendor(name)
+		if err != nil {
+			t.Errorf("ParseModelVendor(%q) unexpected error: %v", name, err)
+		}
+		if parsed != vendor {
+			t.Errorf("ParseModelVendor(%q) = %d, want %d", name, parsed, vendor)
+		}
+	}
+}

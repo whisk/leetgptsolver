@@ -41,13 +41,14 @@ Single Go binary (Cobra CLI in `main.go`; all code in `main` except `pkg/models.
 | `prompt` | `prompt.go` | Send a problem to an LLM; store the solution in the JSON file |
 | `submit` | `submit.go` | Submit a stored solution to LeetCode; store the result |
 | `list` | `list.go` | Filter/sort/print problem files with jq (`gojq`) |
+| `models` | `models.go` | List available text models from one or more LLM providers |
 | `fix` | `fix.go` | Scaffold for one-off data migrations |
 
 - **Stdin file lists:** pass `-` as the first arg to read paths from stdin (blank lines, `#` comments, and surrounding whitespace—including the trailing tab `list` emits on scalar values—are trimmed).
 - **`-d/--dry_run` only works in `submit`** — `download` and `prompt` ignore it.
 - **`download -c` defaults to `algorithms`.** Pass `-c all` when inputs may include `Database` problems, or they get skipped as `unknown problem`.
 - **Auth & config:** LeetCode requests read cookies from the **Firefox default profile only** (`kooky`; Chrome isn't supported). `download` checks for a signed-in user unless `-A` is passed. Runtime config is read from `config.production.yaml` in CWD (fatals if missing); `prompt_template` must contain `{language}`, `{question}`, and `{snippet}`.
-- **LLM routing:** vendors are guessed by model-name prefix in `pkg/models.go` (override with `--model_vendor`). `prompt` accepts arbitrary model names—don't update the model lists in `pkg/models.go` unless asked. Google uses **Vertex AI** (service-account JSON); xAI uses the OpenAI-compatible client. Optional params (`model@{json}`) must be canonical JSON (`json.Marshal`, sorted keys, no spaces) and become part of the map key. A fresh `prompt` resets that `[model][lang]` submission to `Submission{}`.
+- **LLM routing:** vendors are guessed by model-name prefix in `pkg/models.go` (override with `--model_vendor`). `prompt` accepts arbitrary model names; use `go run . models [vendor...]` to query available models directly from providers. Google uses **Vertex AI** (service-account JSON); xAI uses the OpenAI-compatible client. Optional params (`model@{json}`) must be canonical JSON (`json.Marshal`, sorted keys, no spaces) and become part of the map key. A fresh `prompt` resets that `[model][lang]` submission to `Submission{}`.
 - **Error types (`utils.go`):** `ErrFatal` aborts the run; `ErrNonRetriable` skips retries for one file and continues.
 
 ## Problem JSON data model

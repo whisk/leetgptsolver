@@ -189,6 +189,27 @@ func main() {
 	cmdSubmit.Flags().Bool("add_metadata_comment", true, "add a comment with metadata to the submitted code")
 	cmdSubmit.PersistentFlags().StringP("model", "m", "", "model name to use")
 
+	cmdModels := &cobra.Command{
+		Use:   "models [vendor...]",
+		Short: "List available models for one or more providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			viper.BindPFlag("model_vendor", cmd.Flags().Lookup("model_vendor"))
+			viper.Unmarshal(&options)
+			longFormat, err := cmd.Flags().GetBool("long")
+			if err != nil {
+				return err
+			}
+			includeAll, err := cmd.Flags().GetBool("all")
+			if err != nil {
+				return err
+			}
+			return listModels(args, cmd.Flag("model_vendor").Value.String(), longFormat, includeAll)
+		},
+	}
+	cmdModels.Flags().String("model_vendor", "", "model vendor (openai|google|vertexai|anthropic|deepseek|xai)")
+	cmdModels.Flags().BoolP("long", "l", false, "show additional model information if available")
+	cmdModels.Flags().Bool("all", false, "include all fetched models (including inactive, deprecated, retired, and non-text models)")
+
 	cmdFix := &cobra.Command{
 		Use:   "fix",
 		Short: "Fix problems",
@@ -197,7 +218,7 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdFix)
+	rootCmd.AddCommand(cmdDownload, cmdList, cmdPrompt, cmdSubmit, cmdModels, cmdFix)
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {

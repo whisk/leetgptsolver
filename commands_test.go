@@ -27,6 +27,22 @@ func TestPromptErrorPropagation(t *testing.T) {
 		if !strings.Contains(err.Error(), "failed to resolve vendor") {
 			t.Errorf("expected 'failed to resolve vendor', got: %v", err)
 		}
+		if !strings.Contains(err.Error(), "leetgptsolver models") {
+			t.Errorf("expected hint to run 'leetgptsolver models', got: %v", err)
+		}
+	})
+
+	t.Run("non-text model returns handy unsupported error", func(t *testing.T) {
+		err := prompt([]string{"problem.json"}, "python3", "gpt-image-1", "")
+		if err == nil {
+			t.Fatal("expected error for non-text model, got nil")
+		}
+		if !strings.Contains(err.Error(), "not a text model") {
+			t.Errorf("expected 'not a text model', got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "leetgptsolver models openai") {
+			t.Errorf("expected hint to run 'leetgptsolver models openai', got: %v", err)
+		}
 	})
 }
 
