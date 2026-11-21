@@ -231,7 +231,10 @@ func promptOpenAi(q Question, lang, modelName, params string) (*Solution, error)
 }
 
 func promptDeepseek(q Question, lang, modelName, params string) (*Solution, error) {
-	client := deepseek.NewClient(options.DeepseekApiKey)
+	client, err := deepseek.NewClientWithOptions(options.DeepseekApiKey, deepseek.WithTimeout(15*time.Minute))
+	if err != nil {
+		return nil, NewFatalError(fmt.Errorf("failed to create deepseek client: %w", err))
+	}
 	lang, prompt, err := generatePrompt(q, lang)
 	if err != nil {
 		return nil, NewFatalError(fmt.Errorf("failed to make prompt: %w", err))
@@ -240,7 +243,6 @@ func promptDeepseek(q Question, lang, modelName, params string) (*Solution, erro
 	log.Trace().Msgf("Generated prompt:\n%s", prompt)
 
 	t0 := time.Now()
-	client.Timeout = 15 * time.Minute
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		&deepseek.ChatCompletionRequest{
