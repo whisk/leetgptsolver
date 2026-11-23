@@ -134,15 +134,49 @@ func (p Problem) SaveProblemInto(destPath string) error {
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(destPath)
+
+	dir := filepath.Dir(destPath)
+	tmpFile, err := os.CreateTemp(dir, "."+filepath.Base(destPath)+".*.tmp")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create temp file for %s: %w", destPath, err)
 	}
-	defer file.Close()
-	n, err := file.Write(jsonBytes)
+	tmpPath := tmpFile.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	n, err := tmpFile.Write(jsonBytes)
 	if err != nil {
-		return err
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to write temp file for %s: %w", destPath, err)
 	}
+
+	perm := os.FileMode(0o644)
+	if info, err := os.Stat(destPath); err == nil && !info.IsDir() {
+		perm = info.Mode().Perm()
+	}
+	if err := tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to set permissions on temp file for %s: %w", destPath, err)
+	}
+
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to sync temp file for %s: %w", destPath, err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file for %s: %w", destPath, err)
+	}
+
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return fmt.Errorf("failed to rename temp file into %s: %w", destPath, err)
+	}
+	cleanup = false
+
 	log.Debug().Msgf("Wrote %d bytes into %s", n, destPath)
 
 	return nil
